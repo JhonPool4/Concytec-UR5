@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+	<param name="robot_description" command="$(find xacro)/xacro --inorder $(find ur5_description)/urdf/ur5_joint_limited_robot.urdf.xacro" />
+
+	<!--<node name="nodo_control_UR5" pkg="concytec" type= "diff_control_ur5" /> -->
+	<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+	<arg name="config_file" value="$(find concytec)/config/ur5.rviz"/>
+	<node name="rviz" pkg="rviz" type="rviz" respawn="false" output="screen" args="-d$(arg config_file)"/>
+
+</launch>
