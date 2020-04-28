@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/utec/ros_ws/install/setup.sh

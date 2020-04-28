@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/utec/ros_ws/src/rbdl/build/devel/setup.sh
