@@ -58,7 +58,8 @@ pub.publish(jstate)
 # 					Robot Dynamics
 # =============================================================
 # Modelo RBDL
-modelo = rbdl.loadModel('/home/utec/ros_ws/src/ur5/ur5_description/urdf/ur5_joint_limited_robot.urdf')
+modelo = rbdl.loadModel('/home/utec/ros_ws/src/concytec_ur5/urdf/ur5_joint_limited_robot.urdf')
+#modelo = rbdl.loadModel('/home/utec/ros_ws/src/ur5/ur5_description/urdf/ur5_joint_limited_robot.urdf')
 ndof   = modelo.q_size     # Degrees of Freedom
 
 # Communication frecuency (Hz)
@@ -110,7 +111,7 @@ fddq 	 	= 	open(path + "ddq.txt", "w")
 fu 			= 	open(path + "u.txt", "w")
 fQerror 	= 	open(path + "Q_error.txt", "w")
 
-# Start simuation
+# Start simulation
 while not rospy.is_shutdown():
 
 	# ========================================
