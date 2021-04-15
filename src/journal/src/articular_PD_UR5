@@ -1,0 +1,182 @@
+#!/usr/bin/env python
+
+# ============================================================
+#	Curso   :   Concytec - UTEC
+# 	Alumno  :   Jhon Charaja
+# 	Info	:	articular PD controller for UR5 robot
+# ============================================================
+
+# ============================
+# 			Libraries
+# ============================ 
+import rospy 							# ROS with Python
+from sensor_msgs.msg import JointState 	# To send angular position to robot
+from markers import *					# To show a market ball 
+from functions import *					# Forward Kinematics, Inverse Kinematics and Forward Dynamic
+from roslib import packages				# Library with ROS packages
+import rbdl								# Library to compute dynamic matrix H and B of robot
+pi = np.pi 								# Define "pi"
+
+
+# ===============================
+# 		Configuration of node
+# ===============================
+# Create a nodo: PID_controller
+rospy.init_node("Circ_tray_PD_controller_ur5")
+
+# Public in topic /joint_states	to send joint data		
+pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
+
+# ===============================
+# 		Line and Ball Marker
+# ===============================
+# Show a ball marker for current and desired position of robot' end-effector
+bmarker_des 	= BallMarker(color['RED'])
+bmarker_act  	= BallMarker(color['YELLOW'])
+
+# =============================================================
+# 				Set home joint configuration of UR5
+# =============================================================
+#  Home joint configuration of ur5 robot (radians)
+q 		= np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.53827725, -1.35006513]) # centro del circulo 		[0.5 +0.0 0.0]
+#q 		= np.array([0.02387449, -2.17330664, -2.11274865, -0.42801517,  1.53728324, -1.55185632]) # derecha del circulo 	[0.5 -0.1 0.0]
+#q 		= np.array([0.18751981, -2.28693212, -1.84068068, -0.59154513,  1.53793921, -1.38812797]) # arriba del circulo 		[0.6 +0.0 0.0]
+#q 		= np.array([0.4182522 , -2.17178325, -2.11005823, -0.44335183,  1.53978351, -1.15730822]) # izquierda del circulo 	[0.5 +0.1 0.0]
+#q 		= np.array([0.28333472, -2.05939084, -2.41975261, -0.24162777,  1.53830479, -1.29228808]) # abajo del circulo 		[0.4 +0.0 0.0]
+dq 		= np.zeros(6)
+
+q_des 	= copy(q); dq_des = np.zeros(6)
+
+x_des 	= np.array([0.5,   0.0,  0.0, 0.01676998,  0.99985616,  0.00251062,  0.00 ]); 
+dx_des 	= np.zeros(7)
+
+x_act 	= np.zeros(7); 
+dx_act 	= np.zeros(7)
+
+x_error = np.zeros(7);
+
+# Joints name of UR5 robot
+jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+
+# Object(messague) type JointState
+jstate = JointState()
+
+# Loop rate (in Hz)
+rate 	= rospy.Rate(1000)		# 1000 [Hz]
+dt 		= 1e-3					# 1  [ms]
+
+# =============================================================
+# 					Robot Dynamics
+# =============================================================
+modelo = rbdl.loadModel('/home/utec/ros_ws/src/ur5_description/urdf/ur5_joint_limited_robot.urdf')
+
+ndof   = modelo.q_size     # Degrees of Freedom
+
+# Create a object Robot with dynamics of UR5 robot (code in Functiones)
+UR5_robot = Robot(q, dq, ndof, dt)
+
+# ================================
+# 			PD controller
+# ================================
+KP = 0.2*np.diag(np.array([800, 600, 300, 200, 450, 300]))
+KD = 1.2*np.diag(np.array([15, 12, 3, 1, 2, 1]))
+
+
+# ================================
+# 		Dynamic simulation
+# ================================
+t = 0.0
+
+# Save data
+#path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Cartesian_PD/" 
+#path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Circular_traj/"
+path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Linear_traj/" 
+ftime 		= 	open(path + "time"  	+ ".txt", "w")
+fu 			= 	open(path + "u"     	+ ".txt", "w")
+fx_des 		= 	open(path + "x_des" 	+ ".txt", "w")
+fx_act		= 	open(path + "x_act" 	+ ".txt", "w")
+fq 			= 	open(path + "q_act"		+ ".txt", "w")
+
+
+while not rospy.is_shutdown():
+	# desired values (cartesian space)
+	#x_des[0:3], dx_des[0:3] = circular_trayectory_generator(t*dt/4)
+	pos, x_des[0], x_des[1], dx_des[0], dx_des[1] = star_trayectory_generator(t,1000,4.5)
+	
+	# Inverse kinematics
+	q_des, dq_des = ikine_pose_ur5(x_des, dx_des, q_des)	# It starts with qdes=copy(q0)
+
+	# Generar objeto/espacio del vector g(q)
+	g = np.zeros(np.shape(q))
+
+	# Calcular g(q_)
+	rbdl.NonlinearEffects(modelo, q, q*0, g)
+	
+	# PD articular + gravedad
+	u = np.dot(KP,(q_des-q)) - np.dot(KD, dq) + g
+
+	# Send control signal
+	u 		= saturador_effort_control_UR5(u)
+	UR5_robot.send_command(u)
+
+	# Read position and velocity angular of UR5 joints
+	q  		= UR5_robot.read_joint_positions()
+	dq 		= UR5_robot.read_joint_velocities()
+
+	# Publish message
+	jstate.header.stamp = rospy.Time.now()
+	jstate.name 		= jnames			# Joints position name
+	jstate.position 	= q
+	jstate.velocity 	= dq
+	pub.publish(jstate)
+
+	# Current Position of UR5 end-effector
+	T_act 		= fkine_ur5(q)
+	Q_act  		= rot2quat(T_act[0:3, 0:3])x|
+	Q_error 	= quatError(x_des[3:7], Q_act)
+	x_act[0:3]  = T_act[0:3,3]
+	x_act[3:7] 	= Q_act 
+
+	x_error[0:3] = x_des[0:3] - x_act[0:3]
+	x_error[3:7] = Q_error
+	
+
+	t = t + 1;
+	# Print
+	print("time: ", t)
+	print("error:", np.round(1000*x_error[0:3]))
+	#print("q: ", q)
+	#print("")
+
+	# Ball marker
+	bmarker_des.xyz(x_des[0:3])	# Red
+	bmarker_act.xyz(x_act[0:3])	# Yellow
+	
+	# save data
+	ftime.write(str(t)+'\n')
+	fx_des.write(str(x_des[0])+', '+str(x_des[1])+', '+str(x_des[2])+', '+str(x_des[3])+', '+str(x_des[4])+', '+
+				 str(x_des[5])+', '+str(x_des[6])+'\n')
+
+	fx_act.write(str(x_act[0])+', '+str(x_act[1])+', '+str(x_act[2])+', '+str(x_act[3])+', '+str(x_act[4])+', '+
+				 str(x_act[5])+', '+str(x_act[6])+'\n')
+	
+	fu.write(str(u[0]) + ', ' + str(u[1]) + ', ' + str(u[2]) + ', ' + str(u[3]) + ', ' + str(u[4]) + ', ' +
+			 str(u[5]) + '\n')	
+
+	fq.write(str(q[0])+', '+str(q[1])+', '+str(q[2])+', '+str(q[3])+', '+str(q[4])+', '+str(q[5])+'\n')
+
+
+
+	if t>=5000:
+		print("DATA CREATED")
+		break;
+
+
+	# Wait for the next iteration
+	rate.sleep()
+
+#close file
+ftime.close()
+fx_des.close()
+fx_act.close()
+fq.close()

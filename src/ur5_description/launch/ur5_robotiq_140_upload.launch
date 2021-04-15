@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+	<arg name="limited" default="false" doc="If true, limits joint range [-PI, PI] on all joints." />
+	<arg name="transmission_hw_interface" default="hardware_interface/EffortJointInterface" />
+
+	<param name="robot_description" command="$(find xacro)/xacro --inorder '$(find ur5_description)/urdf/ur5_robotiq_140.urdf.xacro' transmission_hw_interface:=$(arg transmission_hw_interface)" />
+
+	<!-- push robot_description to factory and spawn robot in gazebo -->
+	<node name="spawn_gazebo_ur5_robot" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model ur5 -z 0.6" respawn="false" output="screen" /> 
+</launch>

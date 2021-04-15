@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+import numpy as np
+import rospy
+import actionlib
+from control_msgs.msg import *
+from trajectory_msgs.msg import *
+from sensor_msgs.msg import JointState
+
+
+# ===============================
+# 		Configuration of node
+# ===============================
+
+rospy.init_node("move_ur5")
+
+# Public in topic /joint_states	to send joint data		
+robot_client = actionlib.SimpleActionClient('arm_controller/follow_joint_trajectory', FollowJointTrajectoryAction)
+
+print ("Waiting for server...")
+robot_client.wait_for_server()
+print ("Connected to server")
+
+# Communication frecuency (Hz)
+freq 	= 100				# [Hz]
+dt 		= 0.01				# Send joint configuration each 10 ms
+rate 	= rospy.Rate(freq)
+
+
+# =============================================================
+# 				Set home joint configuration of UR5
+# =============================================================
+
+joint_names = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+
+g = FollowJointTrajectoryGoal()
+g.trajectory = JointTrajectory()
+g.trajectory.joint_names = joint_names
+x_des = np.array([0.0, -1.29, -1.54, -0.60, +1.54, -0.0])
+dx_des = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+# Initial position
+g.trajectory.points = [ JointTrajectoryPoint(positions=x_des, velocities=dx_des, time_from_start=rospy.Duration(10.0))]
+robot_client.send_goal(g)
+print("home position")
+robot_client.wait_for_result()
+rospy.sleep(5)
+print("identificando pieza")
+# ================================
+# 		Configure Simulation
+# ================================
+x_des = np.array([0.0, -2.0, -1.62, -1.07, 1.54, -0.21])
+dx_des = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+robot_client.cancel_goal()		
+g.trajectory.points = [ JointTrajectoryPoint(positions=x_des, velocities=dx_des, time_from_start=rospy.Duration(10))]
+robot_client.send_goal(g)
+print("goal position")
+robot_client.wait_for_result()
+
+
+
+robot_client.cancel_goal()

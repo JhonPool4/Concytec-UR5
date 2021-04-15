@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<robot name="ur5" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find ur5_description)/urdf/ur5_joint_limited_robot.urdf.xacro" />
+  <xacro:include filename="$(find robotiq_description)/urdf/robotiq_85_gripper.urdf.xacro" />
+  <xacro:property name="width" value="0.15" />
+  <xacro:property name="mass" value="4" /> <!-- arbitrary value for mass -->
+
+  <!-- Robotiq Coupler -->
+  <!--  + Height added by the coupler: 8mm -->
+  <!--  + Reference frame: at the middle (4mm) -->
+    <link name="box">
+      <visual>
+        <origin xyz="0 0 ${width/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${width} ${width} ${width}"/>
+        </geometry>
+        <material name="orange">
+          <color rgba="0.7 0.7 0.7 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${width/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${width} ${width} ${width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 ${width/2}" rpy="0 0 0"/>
+        <mass value="${mass}"/>
+        <inertia
+            ixx="${mass / 12.0 * (width*width + width*width)}" ixy="0.0" ixz="0.0"
+            iyy="${mass / 12.0 * (width*width + width*width)}" iyz="0.0"
+            izz="${mass / 12.0 * (width*width + width*width)}"/>
+      </inertial>
+    </link>
+
+    <joint name="box_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <parent link="tool0"/>
+      <child link="box"/>
+    </joint>
+
+    <gazebo reference="box">
+        <mu1>10.0</mu1>
+        <mu2>10.0</mu2>
+        <material>Gazebo/Orange</material>
+    </gazebo>    
+
+  
+</robot>
