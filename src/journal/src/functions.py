@@ -195,7 +195,7 @@ class Robot(object):
         self.b  = np.zeros(ndof)
         self.z  = np.zeros(ndof)
         self.dt = dt
-        self.robot = rbdl.loadModel('/home/utec/catkin_ws/src/ur5_description/urdf/ur5_joint_limited_robot.urdf')
+        self.robot = rbdl.loadModel('../../ur5_description/urdf/ur5_joint_limited_robot.urdf')
     def send_command(self, tau):
         tau = np.squeeze(np.asarray(tau))
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
