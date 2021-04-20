@@ -44,20 +44,20 @@ while(k< 60/dt)
     dkp = alpha*(dJ_kp);
     dkd = alpha*(dJ_kd);
     
-    % s and ds variabled
+    % s and ds variable
     s  = kp.*e + kd.*de;
     ds = dkp.*(e) + kp.*de + dkd.*(de) + kd.*(dde);
     
     % gradient descent     
-    dJ_kp =  s.*e    +   ds.*(de);
-    dJ_kd =  s.*de   +   ds.*(de);
+    dJ_kp =  s.*e    +   0*ds.*(de);
+    dJ_kd =  s.*de   +   0*ds.*(de);
     % new values of kp, kd
     if (update == 1)
         kp = kp + alpha*dJ_kp;
         kd = kd + alpha*dJ_kd;
     end
     % control signal
-    tau = M*( ddq_d + kp.*e + kd.*de) + b;
+    tau = M*(kp.*e + kd.*de) + b;
     
     
     % send control signal
@@ -71,7 +71,7 @@ while(k< 60/dt)
     y_q(:,k) = q;
     y_dq(:,k) = dq;
     y_ddq(:,k) = ddq;
-    y_dddq(:,k) =   dddq_d + ds;%ddq - ddq_a;
+    y_dddq(:,k) =   dddq_de%ddq - ddq_a;
     y_e(:,k) = e;
     y_dde(:,k) = dde;
     y_kp(:,k) = kp;
@@ -120,8 +120,6 @@ figure(5), plot(y_kd(1,:)), hold on
            legend('alpha', 'beta')
 
 %% jerk
-figure(6), plot(y_dddq(2,:), 'b'), hold on
-           plot(y_dddqd(2,:), 'r')
-           
+figure(6), plot(y_dddq(2,10:end)), hold on
            title('Jerk medido')
 
