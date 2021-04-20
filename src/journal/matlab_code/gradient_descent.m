@@ -7,7 +7,7 @@ kd = [1;1]; % (Ns/m/rad)
 
 % learning rate
 dt = 1e-3;
-alpha = 1*dt;
+alpha = 1*dt; % sintonizar
 T = 4;
 
 % convergence condition
@@ -28,6 +28,9 @@ tt = 0:(T/dt):(60/dt);
 e_acumulado = 0.0;
 a = 1; 
 update = 1;
+PD = 1;
+%gamma_kp = [0.5; 0.5];
+%gamma_kd = [0.5; 0.5];
 while(k< 20/dt)
     % discrete time
     k = k + 1;
@@ -46,20 +49,35 @@ while(k< 20/dt)
     
     % s and ds variabled
     s  = kp.*e + kd.*de;
-    ds = dkp.*(e) + kp.*de + dkd.*(de) + kd.*(dde) ;
+    ds = dkp.*e + kp.*de + dkd.*de + kd.*(dde);
     
-    % gradient descent     
-    dJ_kp =  s.*e    +   ds.*(de);
-    dJ_kd =  s.*de   +   ds.*(de);
+    if (PD == 1)
+        % gradient descent (KP)
+        gamma = 0.83; %0.83 
+ 
+        dJ_kp =  gamma*s.*e    +   (1-gamma).*ds.*(de); 
+        dJ_kd =  gamma*s.*de   +   (1-gamma).*ds.*(dde);
+        gamma_kp = (s.*e)./(ds.*de);
+        gamma_kd = (s.*de)./(ds.*dde);
+    else
+        % gradient descent (SMC)
+        gamma = 1;
+        dJ_kp = gamma*s.*e  + (1-gamma)*( (2-tanh(s).*tanh(s)).*ds.*( -2*gamma_kd.tanh(s).*(1-tanh(s).*tanh(s)).*ds.*e + (2-tanh(s).*tanh(s)).*de ) );
+        dJ_kd = gamma*s.*de + (1-gamma)*( (2-tanh(s).*tanh(s)).*ds.*( -2*tanh(s).*(1-tanh(s).*tanh(s)).*ds.*de + (2-tanh(s).*tanh(s)).*dde ) );
+    end
+    
     % new values of kp, kd
     if (update == 1)
         kp = kp + alpha*dJ_kp;
         kd = kd + alpha*dJ_kd;
     end
     % control signal
-    tau = M*( ddq_d + s) + b; % PD
-    %tau = M*( ddq_d + s)
     
+    if (PD == 1)
+        tau = M*( ddq_d + s) + b; % PD
+    else
+        tau = M*( ddq_d + s + tanh(s)) + b; % SMC
+    end
     
     % send control signal
     [ddq, dq, q, M, b]=forward_dynamics(tau, q, dq, dt);
@@ -80,6 +98,9 @@ while(k< 20/dt)
     y_dkd(:,k) = dkd;
     y_kd(:,k) = kd;
     y_tau(:,k) = tau;
+    
+    y_gamma_kp(:,k) = gamma_kp;
+    y_gamma_kd(:,k) = gamma_kd;
     
     ddq_a = ddq;
 
@@ -127,3 +148,7 @@ figure(6), plot(y_dddq(2,:), 'b'), hold on
            
            legend('medido', 'deseado')
 
+%% control signal
+figure(7), hold on, grid on,
+            plot(y_tau(1,:), 'b')
+            plot(y_tau(2,:), '--r')
