@@ -68,7 +68,7 @@ dt 		= 1e-3					# 1  [ms]
 # =============================================================
 # 					Robot Dynamics
 # =============================================================
-modelo = rbdl.loadModel('/home/utec/ros_ws/src/ur5_description/urdf/ur5_joint_limited_robot.urdf')
+modelo = rbdl.loadModel('../../ur5_description/urdf/ur5_joint_limited_robot.urdf')
 
 ndof   = modelo.q_size     # Degrees of Freedom
 
@@ -90,7 +90,7 @@ t = 0.0
 # Save data
 #path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Cartesian_PD/" 
 #path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Circular_traj/"
-path 		= 	"/home/utec/ros_ws/src/journal/src/Data/Linear_traj/" 
+path 		= 	"./Data/Linear_traj/" 
 ftime 		= 	open(path + "time"  	+ ".txt", "w")
 fu 			= 	open(path + "u"     	+ ".txt", "w")
 fx_des 		= 	open(path + "x_des" 	+ ".txt", "w")

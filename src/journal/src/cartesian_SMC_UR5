@@ -77,7 +77,7 @@ dt 		= 1e-3					# 1  [ms]
 # =============================================================
 # 					Robot Dynamics
 # =============================================================
-modelo = rbdl.loadModel('/home/utec/catkin_ws/src/ur5_description/urdf/ur5_joint_limited_robot.urdf')
+modelo = rbdl.loadModel('../../ur5_description/urdf/ur5_joint_limited_robot.urdf')
 
 ndof   = modelo.q_size     # Degrees of Freedom
 
@@ -102,7 +102,7 @@ t = 0.0
 # Save data
 save_flag = False
 if save_flag:
-	path 		= 	"/home/utec/catkin_ws/src/journal/src/Data/SMC/Circular_traj/" 
+	path 		= 	"./Data/SMC/Circular_traj/" 
 	ftime 		= 	open(path + "time"  	+ ".txt", "w")
 	fu 			= 	open(path + "u"     	+ ".txt", "w")
 	fs 			= 	open(path + "s" 		+ ".txt", "w")
