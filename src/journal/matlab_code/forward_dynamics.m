@@ -25,5 +25,5 @@ dq  = dq + dt*ddq;
 q   = q  + dt*dq;
 
 % Modificación
-M = 0.7*M;
+M = 1.0*M;
 end

@@ -57,7 +57,8 @@ while(k< 60/dt)
         kd = kd + alpha*dJ_kd;
     end
     % control signal
-    tau = M*( ddq_d + kp.*e + kd.*de) + b;
+    tau = M*( ddq_d + s) + b; % PD
+    %tau = M*( ddq_d + s)
     
     
     % send control signal
@@ -71,7 +72,7 @@ while(k< 60/dt)
     y_q(:,k) = q;
     y_dq(:,k) = dq;
     y_ddq(:,k) = ddq;
-    y_dddq(:,k) =   dddq_d + ds;%ddq - ddq_a;
+    y_dddq(:,k) = dddq_d + ds;%ddq - ddq_a;
     y_e(:,k) = e;
     y_dde(:,k) = dde;
     y_kp(:,k) = kp;
@@ -121,7 +122,7 @@ figure(5), plot(y_kd(1,:)), hold on
 
 %% jerk
 figure(6), plot(y_dddq(2,:), 'b'), hold on
-           plot(y_dddqd(2,:), 'r')
+           plot(y_dddqd(2,:), '--r')
            
-           title('Jerk medido')
+           legend('medido', 'deseado')
 
