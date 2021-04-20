@@ -28,7 +28,7 @@ tt = 0:(T/dt):(60/dt);
 e_acumulado = 0.0;
 a = 1; 
 update = 1;
-while(k< 60/dt)
+while(k< 20/dt)
     % discrete time
     k = k + 1;
     
@@ -46,7 +46,7 @@ while(k< 60/dt)
     
     % s and ds variabled
     s  = kp.*e + kd.*de;
-    ds = dkp.*(e) + kp.*de + dkd.*(de) + kd.*(dde);
+    ds = dkp.*(e) + kp.*de + dkd.*(de) + kd.*(dde) ;
     
     % gradient descent     
     dJ_kp =  s.*e    +   ds.*(de);
@@ -83,19 +83,20 @@ while(k< 60/dt)
     
     ddq_a = ddq;
 
-    if (tt(a)<=k) && (k<tt(a+1))
-        e_acumulado = e_acumulado + norm(e);
-    else
-        y_ee(a) = e_acumulado;
-        a = a + 1;
-        if (e_acumulado < eps)
-            k
-            e_acumulado
-            update = 0;
+    if (update == 1)
+        if (tt(a)<=k) && (k<tt(a+1)) % Periodo
+            e_acumulado = e_acumulado + norm(e);
+        else
+            y_ee(a) = e_acumulado; % almacena error acumulado
+            a = a + 1;             % rango de nuevo ciclo
+            if (e_acumulado <= eps)
+                k
+                e_acumulado
+                update = 0;
+            end
+            e_acumulado = norm(e);
         end
-        e_acumulado = norm(e);
     end
-    
 end
 
 %%
