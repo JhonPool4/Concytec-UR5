@@ -1,0 +1,3 @@
+[submodule "src/robotiq"]
+	path = src/robotiq
+	url = https://github.com/ros-industrial/robotiq
