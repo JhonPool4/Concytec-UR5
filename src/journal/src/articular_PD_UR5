@@ -112,6 +112,8 @@ while not rospy.is_shutdown():
 	# Calcular g(q_)
 	rbdl.NonlinearEffects(modelo, q, q*0, g)
 	
+
+
 	# PD articular + gravedad
 	u = np.dot(KP,(q_des-q)) - np.dot(KD, dq) + g
 

@@ -8,6 +8,7 @@ import numpy as np
 import math
 from copy import copy
 import rbdl
+import os
 
 pi=np.pi
 
@@ -188,6 +189,7 @@ def ikine_pose_ur5(xdes, dxdes, q0):
 
 class Robot(object):
     def __init__(self, q0, dq0, ndof, dt):
+        cwd = os.path.dirname(os.path.realpath(__file__))
         self.q  = q0    # numpy array (ndof x 1)
         self.dq = dq0  # numpy array (ndof x 1)
         self.ddq = np.zeros(ndof)
@@ -195,7 +197,7 @@ class Robot(object):
         self.b  = np.zeros(ndof)
         self.z  = np.zeros(ndof)
         self.dt = dt
-        self.robot = rbdl.loadModel('../../ur5_description/urdf/ur5_joint_limited_robot.urdf')
+        self.robot = rbdl.loadModel(os.path.join(cwd,'../../ur5_description/urdf/ur5_joint_limited_robot.urdf'))
     def send_command(self, tau):
         tau = np.squeeze(np.asarray(tau))
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
@@ -461,7 +463,10 @@ def saturador(x):
     return a
 
 
+def v(q):
+    return np.expand_dims(q, axis = 1)
 
-
+def tl(array):
+    return array.tolist()
 
 
