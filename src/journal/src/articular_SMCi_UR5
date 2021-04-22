@@ -167,11 +167,23 @@ while not rospy.is_shutdown():
 	# Gradient descent
 	gamma = 0.9999
 	# TODO Update dJ_kp and dJ_kd
-	#dJ_kp = gamma * np.multiply(s,e) + 
-	#		(1-gamma) * (  np.multiply( (2 - np.tanh(s)), np.tanh(s)) ) 
+	third =  2 - np.multiply( np.tanh(s), np.tanh(s)) # (2-tanh(s).*tanh(s))
+	second =  np.multiply(np.multiply(-2*np.tanh(s), 1 - np.multiply( np.tanh(s), np.tanh(s))), ds) # -2*tanh(s).*(1-tanh(s).*tanh(s)).*ds
+	first = np.multiply(third, ds) #(2-tanh(s).*tanh(s)).*ds
 
-	dJ_kp = gamma * np.multiply(s,e) + (1 - gamma) * np.multiply(ds, de)
-	dJ_kd = gamma * np.multiply(s,de) + (1- gamma) * np.multiply(ds, dde)
+	dJ_kp = gamma * np.multiply(s,e) + (1-gamma) * ( 
+				np.multiply(first, ( 
+					np.multiply(second, e) + np.multiply(third, de)
+					)
+				)
+			 ) 
+
+	dJ_kd = gamma * np.multiply(s,de) + (1-gamma) * ( 
+				np.multiply(first, ( 
+					np.multiply(second, de) + np.multiply(third, dde)
+					)
+				)
+			 )
 
 	# New values of Kp, Kd
 	KP = KP + alpha*np.diag(dJ_kp)
