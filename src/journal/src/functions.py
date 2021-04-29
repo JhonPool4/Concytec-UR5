@@ -125,7 +125,7 @@ def jacobian_pose_ur5(q, delta=0.001):
    
     return J    
 
-def ikine_pose_ur5(xdes, dxdes, q0):
+def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
     """
     Calcular la cinematica inversa de UR5 con el metodo del jacobiano inverso.
     Los valores de K se obtienen experimentalmente.
@@ -150,9 +150,8 @@ def ikine_pose_ur5(xdes, dxdes, q0):
     best_norm_e2    = 10e-3
     max_iter        = 50
     delta           = 0.01
-    dq_p            = np.zeros(6)
+    q               = copy(q0)
 
-    q  = copy(q0)
     for i in range(max_iter):
         T       = fkine_ur5(q)
         e1      = xdes[0:3] - T[0:3,3]                          # position error
@@ -174,7 +173,6 @@ def ikine_pose_ur5(xdes, dxdes, q0):
             best_norm_e1    =   np.linalg.norm(e1)
             q_best          =   q
             dq_best         =   dq
-            #ddq_best        =   (dq_best - dq_p)/delta
             #ddq_best        =   np.dot(Jinv, ( ddxdes - np.dot(dJ,dq_best) ))
             #print("iter: ", i)
             #print("norma position: ",best_norm_e1)
@@ -183,8 +181,10 @@ def ikine_pose_ur5(xdes, dxdes, q0):
             #print("dq: ", dq)#np.round(dq,2))
             #print("\n")
 
+    ddq     = (dq_best - dq0)/delta  # angular acceleration 
+    dddq    = (ddq- ddq0)/delta # angular jerk
 
-    return q_best, dq_best
+    return q_best, dq_best, ddq, dddq
 
 
 class Robot(object):
@@ -300,7 +300,7 @@ def circular_trayectory_generator(t):
 
     Inputs:
     -------
-        -   t   : time
+        -   t   : time [s]
 
     Outpus:
     -------
@@ -308,6 +308,8 @@ def circular_trayectory_generator(t):
         -   y_circ_tray     : "y" position point of circular trayectory at time "t"
         -   dx_circ_tray    : "x" velocity point of circular trayectory at time "t"
         -   dy_circ_tray    : "y" velocity point of circular trayectory at time "t"
+        -   ddx_circ_tray   : "x" acceleration point of circular trayectory at time "t"
+        -   ddy_circ_tray   : "y" acceleration point of circular trayectory at time "t"        
     """
     # Pacient position
     x_paciente = +0.500     # m
@@ -324,22 +326,32 @@ def circular_trayectory_generator(t):
     r_circ  = 0.1                                   #   [m] 
 
     # Parameters of circular trayetory     
-    f           = 0.2                       # frecuency     [Hz]
+    f           = 0.1                       # frecuency     [Hz]
     w           = 2*np.pi*f                 # angular velocity [rad/s]
 
     x0_tray = (r_min + 0.5*(r_max - r_min))
     y0_tray = (y_min + 0.5*(y_max - y_min))
+    
+    #phi = atan2(-1, 0)/ (2*pi) = -2.5
+    phi = 2.5
+    
+    # position points
+    x_circ_tray  = x0_tray + r_circ*np.cos(w*(t-phi))
+    y_circ_tray  = y0_tray + r_circ*np.sin(w*(t-phi))
 
-    x_circ_tray  = x0_tray + r_circ*np.cos(w*(t-1.242))
-    y_circ_tray  = y0_tray + r_circ*np.sin(w*(t-1.242))
+    # velocity points
+    dx_circ_tray = r_circ*( (-w)*np.sin(w*(t-phi)) )
+    dy_circ_tray = r_circ*( (+w)*np.cos(w*(t-phi)) )
 
-    dx_circ_tray = r_circ*( (-w)*np.sin(w*(t-1.242)) )
-    dy_circ_tray = r_circ*( (+w)*np.cos(w*(t-1.242)) )
+    # acceleration points
+    ddx_circ_tray = r_circ*( (-w*w)*np.cos(w*t-phi) )
+    ddy_circ_tray = r_circ*( (-w*w)*np.sin(w*t-phi) )    
 
-    #ddx_circ_tray = r_circ*( (-w*w)*np.cos(w*t) )
-    #ddy_circ_tray = r_circ*( (-w*w)*np.sin(w*t) )    
+    # jerk points
+    dddx_circ_tray = r_circ*( (+w*w*w)*np.sin(w*t-phi) )
+    dddy_circ_tray = r_circ*( (-w*w*w)*np.cos(w*t-phi) )
 
-    return [x_circ_tray, y_circ_tray, 0.0], [dx_circ_tray, dy_circ_tray, 0.0]#, [ddx_circ_tray, ddy_circ_tray]
+    return [x_circ_tray, y_circ_tray, 0.0], [dx_circ_tray, dy_circ_tray, 0.0], [ddx_circ_tray, ddy_circ_tray, 0.0], [dddx_circ_tray, dddy_circ_tray, 0.0] 
 
 
 def patient_force(max_force, min_force):
@@ -469,4 +481,40 @@ def v(q):
 def tl(array):
     return array.tolist()
 
+
+# @info compute pose [x, y, z, w, ex, ey, ez]
+def get_current_pose(q):
+    T_act       = fkine_ur5(q)
+    Q_act       = rot2quat(T_act[0:3, 0:3])
+    return [T_act[0,3], T_act[1,3], T_act[2,3], Q_act[0], Q_act[1], Q_act[2], Q_act[3]]
+
+# @info compute derivative of pose
+def get_current_dpose(q,dq):
+    J = jacobian_pose_ur5(q)
+    return np.dot(J, dq)
+
+
+def compute_error_pose(x_des, x_act):
+    x_error = np.zeros(7)
+    x_error[0:3] = x_des[0:3] - x_act[0:3]
+    x_error[3:7] = quatError(x_des[3:7], x_act[3:7])
+    return x_error
+
+def compute_error_dpose(dx_des, dx_act):
+    dx_error = np.zeros(7)
+    dx_error[0:3] = dx_des[0:3] - dx_act[0:3]
+    dx_error[3:7] = -dx_act[3:7]
+    return dx_error     
+
+def compute_error_ddpose(ddx_des, ddx_act):
+    ddx_error = np.zeros(7)
+    ddx_error[0:3] = ddx_des[0:3] - ddx_act[0:3]
+    ddx_error[3:7] = -ddx_act[3:7]
+    return ddx_error    
+
+def compute_error_dddpose(dddx_des, dddx_act):
+    dddx_error = np.zeros(7)
+    dddx_error[0:3] = dddx_des[0:3] - dddx_act[0:3]
+    dddx_error[3:7] = -dddx_act[3:7]
+    return dddx_error 
 
