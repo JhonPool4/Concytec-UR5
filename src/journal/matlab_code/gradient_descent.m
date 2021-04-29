@@ -7,8 +7,8 @@ lambda = 1*[1;1]; % (N/m/rad)
 
 % learning rate
 dt = 1e-2;
-alpha = 0.01*dt; % sintonizar
-T = 5;
+alpha = 0.05*dt; % sintonizar
+T = 10; % si es muy rapido se vuelve inestable
 
 % convergence condition
 eps = 1*(pi/180)*(T/dt); % 5°/period
@@ -27,7 +27,7 @@ dJ_lambda = [0; 0];
 % dynamic simulation
 k = 1; % discrete time
 update = 1;
-time = 30;
+time = 50;
 tt = 0:(T/dt):(time/dt);
 e_acumulado = 0.0;
 a = 1; 
@@ -64,7 +64,7 @@ while(k< time/dt)
     dddq = (ddq - ddq_a)/dt;
     
     % cost function
-    gamma = 1;%0.9999;
+    gamma = 0.999;
     c = gamma*0.5*s.*s + (1-gamma)*0.5*ds.*ds;
     
     if (update == 1) && (mod(k,2)==0)
@@ -111,23 +111,28 @@ end
 %%
 close all
 t_start = 500;
-x = 1;
+x = 1; % q1 o q2
 
 figure(1), grid on, hold on
             plot(y_e(x, t_start:end), 'r')
             plot(y_de(x, t_start:end), 'b')
             plot(y_dde(x, t_start:end),'--k')
             plot(y_ddde(x, t_start:end), '-.g')
+            legend('e', 'de', 'dde', 'ddde')
            title('Error')
-           %legend('q1', 'q2')
+           
 
 figure(2), grid on, hold on
-            plot(y_c(x, t_start:end), 'k')
+            plot(y_c(1, t_start:end), '--r')
+            plot(y_c(2, t_start:end), '--b')
+            legend('q1', 'q2')
             title('cost function')
             
 t_start = 1;           
 figure(3), grid on, hold on
-            plot(y_lambda(x, t_start:end), 'k')
+            plot(y_lambda(1, t_start:end), '--r')
+            plot(y_lambda(2, t_start:end), '--b')
+            legend('q1', 'q2')
             title('Lambda')
             
 
