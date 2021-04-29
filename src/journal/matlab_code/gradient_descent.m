@@ -1,4 +1,5 @@
 % journal
+% info: gradient descent with smc
 clc, clear all, close all
 
 % controller
