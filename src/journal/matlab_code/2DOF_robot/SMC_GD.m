@@ -53,7 +53,7 @@ while(k< time/dt)
     
     % control signal
     b_est = u - M*ddq;
-    u = M*(s + tanh(s)) + b_est;
+    u = M*(s + tanh(s)) + b_est; 
     
     % past value
     ddq_a = ddq;
@@ -64,7 +64,7 @@ while(k< time/dt)
     dddq = (ddq - ddq_a)/dt;
     
     % cost function
-    gamma = 0.999;
+    gamma = 0.9;
     c = gamma*0.5*s.*s + (1-gamma)*0.5*ds.*ds;
     
     if (update == 1) && (mod(k,2)==0)
@@ -88,6 +88,7 @@ while(k< time/dt)
     y_ddde(:,k) = ddde;
     y_c(:,k)   = c;
     y_lambda(:,k) = lambda;
+    y_u(:,k)   = u;
 
     % convergence condition
     if (update == 1)
@@ -134,6 +135,10 @@ figure(3), grid on, hold on
             plot(y_lambda(2, t_start:end), '--b')
             legend('q1', 'q2')
             title('Lambda')
+            
+figure(4), grid on, hold on
+            plot(y_u(1, t_start:end), '--r')
+            plot(y_u(2, t_start:end), '--b')
             
 
 

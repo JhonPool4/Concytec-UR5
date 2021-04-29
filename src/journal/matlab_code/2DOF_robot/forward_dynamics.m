@@ -8,8 +8,8 @@ function [ddq, dq, q, M, b]=forward_dynamics(tau, q, dq, dt)
 g  = 9.81; % m/s^2;
 m1 = 10; % kg
 m2 = 10; % kg
-l1 = 1; % kg
-l2 = 1; % kg
+l1 = 1; % m
+l2 = 1; % m
 
 % inertia matriz
 M = [ m1*l1^2 + m2*l1^2 + m2*l2^2*sin(q(2))^2,   m2*l1*l2*cos(q(2))*cos(q(1))^2
@@ -26,8 +26,8 @@ q   = q  + dt*dq;
 
 % estimated  robot parameters
 g  = 9.81; % m/s^2;
-m1 = 10; % kg
-m2 = 10; % kg
+m1 = 8; % kg
+m2 = 8; % kg
 l1 = 1; % kg
 l2 = 1; % kg
 
