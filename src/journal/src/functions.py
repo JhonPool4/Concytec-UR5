@@ -1,7 +1,6 @@
 # ============================================================
-#   Curso   :   Tesis II 2020-1 - UTEC
-#   Alumno  :   Jhon Charaja
-#   Info    :   Basic funcions
+#   Author  :   Jhon Charaja
+#   Info    :   Basic functions
 # ============================================================
 
 import numpy as np
@@ -14,13 +13,13 @@ pi=np.pi
 
 def dh(d, theta, a, alpha):
     """
-    Calcular la matriz de transformacion homogenea asociada con los parametros
-    de Denavit-Hartenberg del Robot UR5
-    Los valores d, theta, a, alpha son escalares.
-    - theta [rad]
-    - alpha [rad]
-    - d     [m]
-    - a     [m]
+    @ info  Computes homogeneous transformation matrix for Denavit-Hartenverg parameters of UR5 robot.
+            The values d, theta, a, alpha are scalars.
+    @param
+            - theta [rad]
+            - alpha [rad]
+            - d     [m]
+            - a     [m]
     """
     T = np.array(
         [[np.cos(theta),    -np.cos(alpha)*np.sin(theta),   +np.sin(alpha)*np.sin(theta),   a*np.cos(theta)],
@@ -33,9 +32,10 @@ def dh(d, theta, a, alpha):
 
 def fkine_ur5(q):
     """
-    Calcular la cinematica directa del robot UR5 dados sus valores articulares. 
-    q es un vector numpy de la forma [q1, q2, q3, q4, q5, q6]
-    Longitudes (en metros)
+    @info   Computes forward kinematics of UR5 robot with current joint position.
+            Lenghts in meters (m)
+
+    @param q joint position [q1, q2, q3, q4, q5, q6]            
     """
     
     
@@ -53,7 +53,8 @@ def fkine_ur5(q):
 
 def rot2quat(R):
     """
-    Converts a rotation matrix to quaterion
+    @info Converts a rotation matrix to quaterion
+    
     Input:
     ------
         - R: Rotation matrix
@@ -104,12 +105,13 @@ def quatError(Qdes, Q):
 
 def jacobian_pose_ur5(q, delta=0.001):
     """
-    Jacobiano analitico para la posicion y orientacion (usando un
-    cuaternion). Retorna una matriz de 7x6 y toma como entrada el vector de
-    configuracion articular q=[q1, q2, q3, q4, q5, q6]
+    @info Analytic jacobian for pose (orientation represented with quaternions)
+    
+    @param q: joint position [6x1]
+    @param J: analytic jacobian [7x6]
     """
     J = np.zeros((7,6))
-    # Transformacion homogenea inicial (usando q)
+    # Initial homogeneous transformation (using q)
     T = fkine_ur5(q)
     Q = rot2quat(T[0:3,0:3])
 
@@ -120,15 +122,14 @@ def jacobian_pose_ur5(q, delta=0.001):
         dQ      = rot2quat(dT[0:3,0:3])
         Jpos    = (dT[0:3,3] - T[0:3,3])/delta
         Jrot    = quatError(dQ, Q)/delta
-        #Jrot   = np.squeeze(np.asarray(Jrot))
         J[:,i] = np.concatenate((Jpos, Jrot), axis=0)
    
     return J    
 
 def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
     """
-    Calcular la cinematica inversa de UR5 con el metodo del jacobiano inverso.
-    Los valores de K se obtienen experimentalmente.
+    @info   Computes inverse kinematics with the method of inverse jacobian.
+            K values were sintonized.
     
     Inputs:
     -------
@@ -188,6 +189,9 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
 
 
 class Robot(object):
+"""
+    @info A robot with dynamics of UR5 robot
+"""    
     def __init__(self, q0, dq0, ndof, dt):
         cwd = os.path.dirname(os.path.realpath(__file__))
         self.q  = q0    # numpy array (ndof x 1)
@@ -198,6 +202,7 @@ class Robot(object):
         self.z  = np.zeros(ndof)
         self.dt = dt
         self.robot = rbdl.loadModel(os.path.join(cwd,'../../ur5_description/urdf/ur5_joint_limited_robot.urdf'))
+
     def send_command(self, tau):
         tau = np.squeeze(np.asarray(tau))
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
@@ -224,6 +229,7 @@ class Robot(object):
 
 
 def saturador_effort_control_UR5(u):
+    # @ info Limit the value of control signal
     size0 = 12*0.9
     size1 = 28*0.9
     size2 = 56*0.9
@@ -257,13 +263,13 @@ def eight_trajectory_generator(t):
     
     Inputs:
     -------
-        - t     : time
+        - t     : time (s)
     Outpus:
     -------
-        - x_tray    : x axis
-        - y_tray    : y axis
-        - dx_tray   : velocity on x axis
-        - dy_tray   : velocity on y axis    
+        - x_tray    : x axis                (m)
+        - y_tray    : y axis                (m)
+        - dx_tray   : velocity on x axis    (m/s)
+        - dy_tray   : velocity on y axis    (m/s)
     """
     # Pacient position
     x_paciente = +0.500     # m
@@ -277,11 +283,11 @@ def eight_trajectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.05                                   #   [m] 
+    r_circ  = 0.05                                  #   [m] 
 
     # Parameters of circular trayetory     
-    f           = 0.2                       # frecuency     [Hz]
-    w           = 2*np.pi*f                 # angular velocity [rad/s]
+    f = 0.2                       # frecuency     [Hz]
+    w = 2*np.pi*f                 # angular velocity [rad/s]
 
     x0_tray = (r_min + 0.5*(r_max - r_min))
     y0_tray = (y_min + 0.5*(y_max - y_min))    
@@ -293,6 +299,7 @@ def eight_trajectory_generator(t):
     dy_tray = r_circ*( (+w)*np.cos(w*t) )/2
 
     return [x_tray, y_tray, 0.0], [dx_tray, dy_tray, 0.0]
+
 
 def circular_trayectory_generator(t):
     """
@@ -426,8 +433,6 @@ def star_trayectory_generator(t, dt, T):
     xf_tray = x0_tray + r_circ*np.cos(angulo - np.pi/2)
     yf_tray = y0_tray + r_circ*np.sin(angulo - np.pi/2)
 
-    #m_x = 
-    #m_y = (yf_tray - y0_tray)/2500
 
     if (tiempo>=0) & (tiempo<(dt*T)):
         # llevar vaso
@@ -464,15 +469,6 @@ def star_trayectory_generator(t, dt, T):
     return pos, x, y, dx,dy #, m_x, m_y
 
 
-def saturador(x):
-    n = len(x)
-    a = np.zeros(n)
-    for i in range(n):
-        if abs(x[i]) <= 1:
-             a[i] = x[i]
-        else:
-            a[i] = np.sign(x[i])
-    return a
 
 
 def v(q):
@@ -482,37 +478,42 @@ def tl(array):
     return array.tolist()
 
 
-# @info compute pose [x, y, z, w, ex, ey, ez]
+
 def get_current_pose(q):
+    # @info Computes pose [x, y, z, w, ex, ey, ez]
     T_act       = fkine_ur5(q)
     Q_act       = rot2quat(T_act[0:3, 0:3])
     return [T_act[0,3], T_act[1,3], T_act[2,3], Q_act[0], Q_act[1], Q_act[2], Q_act[3]]
 
-# @info compute derivative of pose
 def get_current_dpose(q,dq):
+    # @info Computes first derivative of pose with respect of time
     J = jacobian_pose_ur5(q)
     return np.dot(J, dq)
 
 
 def compute_error_pose(x_des, x_act):
+    # @info Computes pose error (cartesian and quaternions)
     x_error = np.zeros(7)
     x_error[0:3] = x_des[0:3] - x_act[0:3]
     x_error[3:7] = quatError(x_des[3:7], x_act[3:7])
     return x_error
 
 def compute_error_dpose(dx_des, dx_act):
+    # @info Computes first derivative of pose error with respect of time
     dx_error = np.zeros(7)
     dx_error[0:3] = dx_des[0:3] - dx_act[0:3]
     dx_error[3:7] = -dx_act[3:7]
     return dx_error     
 
 def compute_error_ddpose(ddx_des, ddx_act):
+    # @info Computes second derivative of pose error with respect of time
     ddx_error = np.zeros(7)
     ddx_error[0:3] = ddx_des[0:3] - ddx_act[0:3]
     ddx_error[3:7] = -ddx_act[3:7]
     return ddx_error    
 
 def compute_error_dddpose(dddx_des, dddx_act):
+    # @info Computes thrid derivative of pose error with respect of time
     dddx_error = np.zeros(7)
     dddx_error[0:3] = dddx_des[0:3] - dddx_act[0:3]
     dddx_error[3:7] = -dddx_act[3:7]
