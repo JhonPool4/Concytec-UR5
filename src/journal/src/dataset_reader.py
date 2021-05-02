@@ -28,7 +28,7 @@ class DataReader:
             x = df.iloc[i, 0]
             y = df.iloc[i, 1]
             z = df.iloc[i, 2]
-            ew = 0
+            ew = 1
             ex = 0
             ey = 0
             ez = 0
