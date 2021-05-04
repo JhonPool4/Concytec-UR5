@@ -189,9 +189,9 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
 
 
 class Robot(object):
-"""
+    """
     @info A robot with dynamics of UR5 robot
-"""    
+    """    
     def __init__(self, q0, dq0, ndof, dt):
         cwd = os.path.dirname(os.path.realpath(__file__))
         self.q  = q0    # numpy array (ndof x 1)
@@ -330,7 +330,7 @@ def circular_trayectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.1                                   #   [m] 
+    r_circ  = 0.05#1                                   #   [m] 
 
     # Parameters of circular trayetory     
     f           = 0.1                       # frecuency     [Hz]
@@ -340,23 +340,23 @@ def circular_trayectory_generator(t):
     y0_tray = (y_min + 0.5*(y_max - y_min))
     
     #phi = atan2(-1, 0)/ (2*pi) = -2.5
-    phi = 2.5
+    phi = 0#-2.5
     
     # position points
-    x_circ_tray  = x0_tray + r_circ*np.cos(w*(t-phi))
-    y_circ_tray  = y0_tray + r_circ*np.sin(w*(t-phi))
+    x_circ_tray  = x0_tray + r_circ*np.cos(w*(t+phi))
+    y_circ_tray  = y0_tray + r_circ*np.sin(w*(t+phi))
 
     # velocity points
-    dx_circ_tray = r_circ*( (-w)*np.sin(w*(t-phi)) )
-    dy_circ_tray = r_circ*( (+w)*np.cos(w*(t-phi)) )
+    dx_circ_tray = r_circ*( (-w)*np.sin(w*(t+phi)) )
+    dy_circ_tray = r_circ*( (+w)*np.cos(w*(t+phi)) )
 
     # acceleration points
-    ddx_circ_tray = r_circ*( (-w*w)*np.cos(w*t-phi) )
-    ddy_circ_tray = r_circ*( (-w*w)*np.sin(w*t-phi) )    
+    ddx_circ_tray = r_circ*( (-w*w)*np.cos(w*(t+phi)) )
+    ddy_circ_tray = r_circ*( (-w*w)*np.sin(w*(t+phi)) )    
 
     # jerk points
-    dddx_circ_tray = r_circ*( (+w*w*w)*np.sin(w*t-phi) )
-    dddy_circ_tray = r_circ*( (-w*w*w)*np.cos(w*t-phi) )
+    dddx_circ_tray = r_circ*( (+w*w*w)*np.sin(w*(t+phi)) )
+    dddy_circ_tray = r_circ*( (-w*w*w)*np.cos(w*(t+phi)) )
 
     return [x_circ_tray, y_circ_tray, 0.0], [dx_circ_tray, dy_circ_tray, 0.0], [ddx_circ_tray, ddy_circ_tray, 0.0], [dddx_circ_tray, dddy_circ_tray, 0.0] 
 
