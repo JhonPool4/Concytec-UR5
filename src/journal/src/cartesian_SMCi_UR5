@@ -46,6 +46,8 @@ ndof   = modelo.q_size     # Degrees of freedom
 # Generar objeto/espacio del vector b y M
 b = np.zeros(ndof)
 M = np.zeros((ndof,ndof))
+b_x = np.zeros(7)
+M_x = np.zeros((7,7))
 
 # Joints name of UR5 robot
 jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
@@ -110,8 +112,8 @@ UR5_robot = Robot(q, dq, ndof, dt)
 # ================================
 # 			SMC controller
 # ================================
-alpha = 1*dt*dt*np.array([1, 1, 1, dt, dt, dt, dt])
-Lambda = 10*np.array([1, 1, 1, 0.05, 0.05, 0.05, 0.05])
+alpha = 1*dt*dt*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
+Lambda = 10*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
 gamma = 1.0
 dJ_Lambda = np.zeros(7)
 dLambda   = np.zeros(7)
@@ -206,8 +208,8 @@ while not rospy.is_shutdown():
 	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
 
 	# Inertia matrix on operational space
-	M_x = np.dot(np.dot(J_inv.transpose(), M), J_inv)
 	b_x = F - np.dot(M_x, ddx_act)
+	M_x = np.dot(np.dot(J_inv.transpose(), M), J_inv)
 	#b_x = np.dot(J_inv.transpose(), b) - np.dot(np.dot(M_x, dJ), dq)	
 
 	# PD articular + Feedback linearization
@@ -230,8 +232,9 @@ while not rospy.is_shutdown():
 	pub.publish(jstate)	
 
 	# Derivative of Kp and Kd
-	dLambda = -(alpha/dt) * (dJ_Lambda)
-
+	#dLambda = -(alpha/dt) * (dJ_Lambda)
+	dLambda = -(1/dt)*np.multiply(alpha, dJ_Lambda)
+	
 	#cost function
 	c = gamma *0.5*np.multiply(s,s) + (1-gamma)*0.5*np.multiply(ds,ds)
 	
@@ -251,23 +254,36 @@ while not rospy.is_shutdown():
 
 
 	# New value of Lambda
-	Lambda = Lambda - np.multiply(alpha,dJ_Lambda) 	#[7x1]
+	crit_p = 1000*np.sqrt(np.sum(np.power(s[0:3],2))) 	#[mm]
+	crit_o = np.sqrt(np.sum(np.power(s[3:7],2))) 
+	if crit_p > np.sqrt(12):
+		Lambda[0:3] = Lambda[0:3] - np.multiply(alpha[0:3],dJ_Lambda[0:3]) 	#[3x1]
 
+	if crit_o > 1e-3:
+		Lambda[3:7] = Lambda[3:7] - np.multiply(alpha[3:7],dJ_Lambda[3:7]) 	#[3x1]		
 
 
 	# Ball marker
 	bmarker_des.xyz(x_des[0:3])	# Red
 	bmarker_act.xyz(x_act[0:3])	# Yellow
 
+
 	# Print
 	print("t: ", t)
-	print("Lambda: ", Lambda) 
-	print("c:  ", c)
-	print("dJ_Lambda: ", np.multiply(alpha,dJ_Lambda))
-	print("e   (mm): ", np.round(1000*x_e[0:3], 1))
-	print("de  (mm): ", np.round(1000*dx_e[0:3],1))
-	print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
-	print("ddde(mm): ", np.round(1000*dddx_e[0:3],1))	
+	print("Lambda: ", Lambda[0:3])
+	print("Lambda: ", Lambda[3:7])
+	print("s: ", np.round(1000*s[0:3], 2))
+	print("ds: ",np.round(1000*ds[0:3], 2))
+	print("crit_p: ", crit_p)
+	print("crit_o: ", crit_o)
+	#print("crit: ", np.round(1000*crit[0:3], 2))
+	#print("crit: ", np.sqrt(np.sum(np.power(crit[3:7],2))) )
+	#print("c:  ", c[0:3])
+	#print("dJ_Lambda: ", np.multiply(alpha,dJ_Lambda))
+	print("e   (mm): ", np.round(1000*x_e[0:3], 2))
+	print("de  (mm): ", np.round(1000*dx_e[0:3],2))
+	print("dde (mm): ", np.round(1000*ddx_e[0:3],2))
+	print("ddde(mm): ", np.round(1000*dddx_e[0:3],2))	
 	print("\n")
 	
 
