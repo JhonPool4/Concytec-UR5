@@ -1,0 +1,299 @@
+#!/usr/bin/env python
+
+# ============================================================
+# 	Authors :   Jhon Charaja y Samir Munoz
+# 	Info	:	Articular adaptive PD controller for UR5 robot
+# ============================================================
+
+# ============================
+# 			Libraries
+# ============================ 
+import rospy 							# ROS with Python
+import os 								# Manipulate path names
+import pandas as pd 					# Save data
+from sensor_msgs.msg import JointState 	# To send angular position to robot
+from markers import *					# To show a market ball 
+from functions import *					# Kinematics, dynamics and trajectories
+from roslib import packages				# Library with ROS packages
+import rbdl								# Library to compute dynamic matrix H and B of robot
+pi = np.pi 								# Define "pi"
+from datetime import datetime
+
+
+# ===============================
+# 		Configuration of node
+# ===============================
+# Create a nodo: PID_controller
+rospy.init_node("PDi_controller_ur5")
+cwd = os.path.dirname(os.path.realpath(__file__))
+
+# Public in topic /joint_states	to send joint data		
+pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
+
+# ===============================
+# 		Line and Ball Marker
+# ===============================
+# Show a ball marker for current and desired position of robot' end-effector
+bmarker_des 	= BallMarker(color['RED'])
+bmarker_act  	= BallMarker(color['YELLOW'])
+
+# =============================================================
+# 					Robot Dynamics
+# =============================================================
+modelo = rbdl.loadModel(os.path.join(cwd,'../../ur5_description/urdf/ur5_joint_limited_robot.urdf'))
+ndof   = modelo.q_size     # Degrees of freedom
+
+# Generar objeto/espacio del vector b y M
+b = np.zeros(ndof)
+M = np.zeros((ndof,ndof))
+
+# Joints name of UR5 robot
+jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+
+# Object(messague) type JointState
+jstate = JointState()
+
+# Loop rate (in Hz)
+f       = 100 				# [Hz]
+rate 	= rospy.Rate(f)		# [Hz]
+dt 		= 1e-2				# 100 ms
+
+# =============================================================
+# 				Initial configuration
+# =============================================================
+#  Home joint configuration of ur5 robot (radians)
+q 		    = np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.53827725, -1.35006513]) # Center [0.5 +0.0 0.0]
+dq 			= np.zeros(ndof)
+ddq 		= np.zeros(ndof)
+
+# Desired angular position, velocity and acceleration
+q_des 	 = np.zeros(ndof)
+dq_des   = np.zeros(ndof) 
+ddq_des  = np.zeros(ndof) 
+dddq_des = np.zeros(ndof)
+
+# Desired cartesian position and velocity
+x_des 	 = np.array([0.0, 0.0,  0.0, 0.01676998,  0.99985616,  0.00251062,  0.00 ])
+dx_des 	 = np.zeros(7)
+ddx_des  = np.zeros(7)
+dddx_des = np.zeros(7)
+
+# Measured angular position, velocity and acceleration
+x_act 	 = np.zeros(7)
+dx_act 	 = np.zeros(7)
+ddx_act  = np.zeros(7)
+dddx_act = np.zeros(7)
+
+# Past velocity and acceleration
+dx_act_p  = np.zeros(7)
+ddx_act_p = np.zeros(7)
+
+# Error angular position, velocity and acceleration
+x_e    = np.zeros(7)
+dx_e   = np.zeros(7)
+ddx_e  = np.zeros(7)
+dddx_e = np.zeros(7)
+
+# s variable
+s  = np.zeros(7)
+ds = np.zeros(7)
+
+# Force
+F = np.zeros(7)
+# control signal
+u = np.zeros(6)
+
+
+# Create a object Robot with dynamics of UR5 robot (code in functions.py)
+UR5_robot = Robot(q, dq, ndof, dt)
+
+# ================================
+# 			SMC controller
+# ================================
+alpha = 1*dt*dt*np.array([1, 1, 1, dt, dt, dt, dt])
+Lambda = 10*np.array([1, 1, 1, 0.05, 0.05, 0.05, 0.05])
+gamma = 1.0
+dJ_Lambda = np.zeros(7)
+dLambda   = np.zeros(7)
+
+# ================================
+# 		Save data
+# ================================
+origin 	= './Data/SMCi'
+suffix 	= 'circular_traj'
+folder = os.path.join(cwd, origin, suffix)
+
+column_names = [
+	'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
+	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',	
+	'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
+	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
+	'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
+	'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
+	'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
+	'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des',
+	'e_x', 'e_y', 'e_z', 'e_w', 'e_ex', 'e_ey', 'e_ez',
+	'de_x', 'de_y', 'de_z', 'de_w', 'de_ex', 'de_ey', 'de_ez',
+	'dde_x', 'dde_y', 'dde_z', 'dde_w', 'dde_ex', 'dde_ey', 'dde_ez',
+	'kp1', 'kp2', 'kp3', 'kp4', 'kp5', 'kp6', 'kp7',
+	'dkp1', 'dkp2', 'dkp3', 'dkp4', 'dkp5', 'dkp6', 'dkp7',
+	'kd1', 'kd2', 'kd3', 'kd4', 'kd5', 'kd6', 'kd7',
+	'dkd1', 'dkd2', 'dkd3', 'dkd4', 'dkd5', 'dkd6', 'dkd7',
+	'u1', 'u2', 'u3', 'u4', 'u5', 'u6',
+	's1', 's2', 's3', 's4', 's5', 's6', 's7',
+	'ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6', 'ds7',	
+	'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7'
+	]
+
+df = pd.DataFrame(columns=column_names)
+
+# Filename
+now = datetime.now()
+now = now.strftime("%d-%m-%Y_%H-%M-%S")
+fn = now
+fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
+
+# Creates folder if it does not exist
+if not os.path.exists(folder):
+	os.makedirs(folder)
+
+path = os.path.join(folder, fn)
+df.to_csv(path, index=False)
+
+# ================================
+# 		Dynamic simulation
+# ================================
+t = 0.0
+#Jp = np.zeros([7,6])
+
+"""
+Nota: Agregar criterio de convergencia, el sistema se vuelve inestable por el error en y que luego pasa a x
+
+"""
+
+
+while not rospy.is_shutdown():
+	# desired values (cartesian space)
+	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(t)
+
+	#Jacobian
+	J = jacobian_pose_ur5(q)
+	J_inv = np.linalg.pinv(J)
+
+	# Current position and velocity of UR5 end-effector
+	x_act[0:7]  = get_current_pose(q)
+	dx_act[0:7] = get_current_dpose(q, dq)
+
+	# Estimation of current acceleration and jerk of UR5 end-effector 
+	ddx_act     = (dx_act - dx_act_p)/dt 
+	dddx_act    = (ddx_act - ddx_act_p)/dt 
+	# Past values
+	dx_act_p 	= copy(dx_act) 
+	ddx_act_p   = copy(ddx_act)
+
+	# Error in position, velocity and acceleration 
+	x_e[0:7]   = compute_error_pose(x_des, x_act)
+	dx_e[0:7]  = compute_error_dpose(dx_des, dx_act)
+	ddx_e[0:7] = compute_error_ddpose(ddx_des, ddx_act)
+	dddx_e[0:7]= compute_error_dddpose(dddx_des, dddx_act)
+
+	# s and ds
+	s  = np.multiply(np.multiply(Lambda, Lambda), x_e) + 2*np.multiply(Lambda, dx_e)
+	ds = 2*np.multiply(np.multiply(Lambda, dLambda), x_e) + np.multiply(np.multiply(Lambda, Lambda), dx_e) + 2*np.multiply(dLambda, dx_e) + 2*np.multiply(Lambda, ddx_e)	
+
+	# Get inertia matrix (M) and nonlinear effects vector (b)
+	rbdl.NonlinearEffects(modelo, q, dq, b)
+	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
+
+	# Inertia matrix on operational space
+	M_x = np.dot(np.dot(J_inv.transpose(), M), J_inv)
+	b_x = F - np.dot(M_x, ddx_act)
+	#b_x = np.dot(J_inv.transpose(), b) - np.dot(np.dot(M_x, dJ), dq)	
+
+	# PD articular + Feedback linearization
+	F = M_x.dot(ddx_des + s + np.tanh(s)) + b_x
+	u = np.dot( J.transpose() , F )	
+
+	# Send control signal
+	u 		= saturador_effort_control_UR5(u)
+	UR5_robot.send_command(u)
+
+	# Read position, velocity, and acceleration angular of UR5 joints
+	q  		= UR5_robot.read_joint_positions()
+	dq 		= UR5_robot.read_joint_velocities()
+
+	# Publish message
+	jstate.header.stamp = rospy.Time.now()
+	jstate.name 		= jnames			# Joints position name
+	jstate.position 	= q 				# Joints position
+	jstate.velocity 	= dq 				# Joints velocity
+	pub.publish(jstate)	
+
+	# Derivative of Kp and Kd
+	dLambda = -(alpha/dt) * (dJ_Lambda)
+
+	#cost function
+	c = gamma *0.5*np.multiply(s,s) + (1-gamma)*0.5*np.multiply(ds,ds)
+	
+	# Gradient descent
+	dJ_s    = gamma*s 							# [7x1]
+	ds_q    = -np.multiply(Lambda, Lambda)		# [7x1]
+
+	dJ_ds   = (1-gamma)*ds 						# [7x1]
+	dds_q   =  -2*np.multiply(Lambda, dLambda) 	# [7x1]
+
+	first  =  np.multiply(2-np.multiply(np.tanh(s),np.tanh(s)), np.multiply(Lambda, x_e) + dx_e ) # [7x1]
+	du_Lambda = 2*np.dot(M_x, first) 				# [7x1]
+
+	dJ_Lambda1 = np.multiply(np.multiply(dJ_s,   ds_q), du_Lambda) 
+	dJ_Lambda2 = np.multiply(np.multiply(dJ_ds, dds_q), du_Lambda)
+	dJ_Lambda =  dJ_Lambda1 + dJ_Lambda2
+
+
+	# New value of Lambda
+	Lambda = Lambda - np.multiply(alpha,dJ_Lambda) 	#[7x1]
+
+
+
+	# Ball marker
+	bmarker_des.xyz(x_des[0:3])	# Red
+	bmarker_act.xyz(x_act[0:3])	# Yellow
+
+	# Print
+	print("t: ", t)
+	print("Lambda: ", Lambda) 
+	print("c:  ", c)
+	print("dJ_Lambda: ", np.multiply(alpha,dJ_Lambda))
+	print("e   (mm): ", np.round(1000*x_e[0:3], 1))
+	print("de  (mm): ", np.round(1000*dx_e[0:3],1))
+	print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
+	print("ddde(mm): ", np.round(1000*dddx_e[0:3],1))	
+	print("\n")
+	
+
+
+	# Append data
+	#row = tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)
+	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)
+	row = tl(np.expand_dims(np.array(row), axis = 1))
+
+	# Fix for redimensionality
+	df_row = pd.DataFrame.from_dict(dict(zip(column_names, row)))
+
+	df.append(df_row, sort = False).to_csv(path, index=False, mode = 'a', header=False)
+
+	# Time
+	t = t + dt
+
+	if t>=(60):
+		print("Reached maximum of steps \n\n")
+		break
+
+	# Wait for the next iteration
+	rate.sleep()
+
+print('out because ctrl + c. Data saved.')
+
+
+
+
