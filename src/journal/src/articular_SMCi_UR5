@@ -53,11 +53,7 @@ M = np.zeros((ndof,ndof))
 # 				Set home joint configuration of UR5
 # =============================================================
 #  Home joint configuration of ur5 robot (radians)
-q 		= np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.53827725, -1.35006513]) # centro del circulo 		[0.5 +0.0 0.0]
-#q 		= np.array([0.02387449, -2.17330664, -2.11274865, -0.42801517,  1.53728324, -1.55185632]) # derecha del circulo 	[0.5 -0.1 0.0]
-#q 		= np.array([0.18751981, -2.28693212, -1.84068068, -0.59154513,  1.53793921, -1.38812797]) # arriba del circulo 		[0.6 +0.0 0.0]
-#q 		= np.array([0.4182522 , -2.17178325, -2.11005823, -0.44335183,  1.53978351, -1.15730822]) # izquierda del circulo 	[0.5 +0.1 0.0]
-#q 		= np.array([0.28333472, -2.05939084, -2.41975261, -0.24162777,  1.53830479, -1.29228808]) # abajo del circulo 		[0.4 +0.0 0.0]
+q 		    = np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.53827725, -1.35006513]) # Center [0.5 +0.0 0.0]
 dq 			= np.zeros(ndof)
 ddq 		= np.zeros(ndof)
 dq_des_m1   = np.zeros(ndof)
@@ -106,14 +102,17 @@ UR5_robot = Robot(q, dq, ndof, dt)
 # ================================
 # 			SMC controller
 # ================================
-alpha = 100
-
-Lambda = np.array([1, 1, 1, 1, 1, 1])#np.eye(ndof)
+#alpha = 0.5*dt
+#gamma = 0.9
+alpha = 10*dt
+gamma = 1.0
+Lambda = 0.5*np.array([1, 1, 1, 1, 1, 1])#np.eye(ndof)
 
 dJ_Lambda = np.zeros(ndof)
 
-s = np.zeros(6)
+s  = np.zeros(6)
 ds = np.zeros(6)
+u  = np.zeros(6)
 
 # ================================
 # 		Dynamic simulation
@@ -152,7 +151,7 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
-fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)
+fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_gamma_"+str(gamma)+"v2.csv"
 
 # Creates folder if it does not exist
 
@@ -164,7 +163,7 @@ df.to_csv(path, index=False)
 
 while not rospy.is_shutdown():
 	# desired values (cartesian space)
-	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(dt*t)
+	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(t)
 	
 	# Inverse kinematics
 	q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5(x_des, dx_des, q_des, dq_des, ddq_des)	# It starts with qdes=copy(q0)
@@ -179,7 +178,8 @@ while not rospy.is_shutdown():
 	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
 
 	# SMC articular + Feedback linearization
-	u = M.dot( s + np.tanh(s)) + b
+	b_est = u - np.dot(M, ddq)
+	u = M.dot(ddq_des +  s + np.tanh(s)) + b_est
 	
 	# Send control signal
 	u 		= saturador_effort_control_UR5(u)
@@ -224,7 +224,6 @@ while not rospy.is_shutdown():
 	ds = 2*np.multiply(np.multiply(Lambda, dLambda), e) + np.multiply(np.multiply(Lambda, Lambda), de) + 2*np.multiply(dLambda, de) + 2*np.multiply(Lambda, dde)	
 	
 	#cost function
-	gamma = 0.9
 	c = gamma *0.5*np.multiply(s,s) + (1-gamma)*0.5*np.multiply(ds,ds)
 	
 	# Gradient descent
@@ -235,41 +234,34 @@ while not rospy.is_shutdown():
 	dds_q   =  -2*np.multiply(Lambda, dLambda) 	# [6x1]
 
 	first  =  np.multiply(2-np.multiply(np.tanh(s),np.tanh(s)), np.multiply(Lambda, e) + de ) # [6x1]
-	du_lambda = 2*np.dot(M, first) 				# [6x1]
+	du_Lambda = 2*np.dot(M, first) 				# [6x1]
 
-	dJ_lambda1 = np.multiply(np.multiply(dJ_s, ds_q), du_lambda) 
-	dJ_lambda2 = np.multiply(np.multiply(dJ_ds, dds_q), du_lambda)
-	dJ_lambda =  copy(dJ_lambda1) + copy(dJ_lambda2)
+	dJ_Lambda1 = np.multiply(np.multiply(dJ_s,   ds_q), du_Lambda) 
+	dJ_Lambda2 = np.multiply(np.multiply(dJ_ds, dds_q), du_Lambda)
+	dJ_Lambda =  dJ_Lambda1 + dJ_Lambda2
 
 
 	# New value of Lambda
 	Lambda = Lambda - alpha*dJ_Lambda
 	
-	t = t + 1
+	t = t + dt
 
-	# Print
-	#print("time: ", t)
-	#print("error:", np.round(1000*x_e[0:3]))
 	# Ball marker
 	bmarker_des.xyz(x_des[0:3])	# Red
 	bmarker_act.xyz(x_act[0:3])	# Yellow
 	
-	# Fill empty info. Temporary
-	#dddq = dddq_des + ds
-
 	# Print
 	print("t: ", t)
-	print("Lambda: ", Lambda[0:6]) # por alguna razon lambda no cambia
-	print("dJ_Lambda: ", dJ_lambda) # a pesar de que hay valores diferente de cero en dJ_lambda 
-	print("dJ_lambda1: ", dJ_lambda1)
-	print("dJ_lambda2: ", dJ_lambda2)
-	#print("c:  ", c[0:6])
-	#print("s: ", s[0:6])
-	#print("ds: ", ds[0:6])
-	#print("eo: ", e[3:7])
+	print("Lambda: ", Lambda) 
+	print("c:  ", c)
+	print("e   (mm): ", np.round(1000*x_e[0:3], 1))
+	print("de  (mm): ", np.round(1000*dx_e[0:3],1))
+	print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
+	print("ddde(mm): ", np.round(1000*dddx_e[0:3],1))	
 	print("\n")
 
 	# Append data
+	#row = tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)
 	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
@@ -278,7 +270,7 @@ while not rospy.is_shutdown():
 
 	df.append(df_row, sort = False).to_csv(path, index=False, mode = 'a', header=False)
 
-	if t>=(10/dt):
+	if t>=(60):
 		print("Reached maximum of steps")
 		break
 
