@@ -18,28 +18,28 @@ class MultipleKalmanDerivator:
         self.deltaT = deltaT
 
         self.derivators =   [KalmanDerivator(self.deltaT),
-							 KalmanDerivator(self.deltaT), 
-							 KalmanDerivator(self.deltaT), 
-							 KalmanDerivator(self.deltaT), 
-							 KalmanDerivator(self.deltaT),
                              KalmanDerivator(self.deltaT), 
-							 KalmanDerivator(self.deltaT),
+                             KalmanDerivator(self.deltaT), 
+                             KalmanDerivator(self.deltaT), 
+                             KalmanDerivator(self.deltaT),
+                             KalmanDerivator(self.deltaT), 
+                             KalmanDerivator(self.deltaT),
                              ]
 
     def update(self, x_update):
         x_v = []
-		dx_v = []
-		ddx_v = []
+        dx_v = []
+        ddx_v = []
 
-		for i, _ in enumerate(self.derivators):
-			x, dx, ddx = self.derivators[i].kalman_filter(x_update[i])
-			x_v.append(x)
-			dx_v.append(dx)
-			ddx_v.append(ddx)
+        for i, _ in enumerate(self.derivators):
+            x, dx, ddx = self.derivators[i].kalman_filter(x_update[i])
+            x_v.append(x)
+            dx_v.append(dx)
+            ddx_v.append(ddx)
 
-		self.x_v = np.array(x_v)
-		self.dx_v = np.array(dx_v)
-		self.ddx_v = np.array(ddx_v)
+        self.x_v = np.array(x_v)
+        self.dx_v = np.array(dx_v)
+        self.ddx_v = np.array(ddx_v)
 
         return self.x_v, self.dx_v, self.ddx_v 
 
@@ -54,16 +54,16 @@ class KalmanDerivator:
         self.P_k_k =  np.eye(3)
         self.P_k1_k = np.eye(3)
         
-        self.K = np.zeros((3,1))	#np.random.randn(3,1)
+        self.K = np.zeros((3,1))    #np.random.randn(3,1)
         
         
         self.Q = .1*np.array([[deltaT**5/20, deltaT**4/8, deltaT**3/6],
-        					[deltaT**4/8, deltaT**3/3, deltaT**2/2],
-        					[deltaT**3/6, deltaT**2/2, deltaT]]) #
+                            [deltaT**4/8, deltaT**3/3, deltaT**2/2],
+                            [deltaT**3/6, deltaT**2/2, deltaT]]) #
 
-        		#2*np.diag([0.01,0.05,0.1])#
-        		#2.*np.eye(3)
-        		
+                #2*np.diag([0.01,0.05,0.1])#
+                #2.*np.eye(3)
+                
         
         self.R = 0.001*np.eye(1)
         self.I = np.eye(3)
