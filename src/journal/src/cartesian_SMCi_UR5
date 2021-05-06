@@ -18,6 +18,7 @@ from roslib import packages				# Library with ROS packages
 import rbdl								# Library to compute dynamic matrix H and B of robot
 pi = np.pi 								# Define "pi"
 from datetime import datetime
+from kalman import * 					# kalman filter
 
 
 # ===============================
@@ -36,6 +37,7 @@ pub = rospy.Publisher('joint_states', JointState, queue_size=1000)
 # Show a ball marker for current and desired position of robot' end-effector
 bmarker_des 	= BallMarker(color['RED'])
 bmarker_act  	= BallMarker(color['YELLOW'])
+
 
 # =============================================================
 # 					Robot Dynamics
@@ -59,6 +61,11 @@ jstate = JointState()
 f       = 100 				# [Hz]
 rate 	= rospy.Rate(f)		# [Hz]
 dt 		= 1e-2				# 100 ms
+
+# ==============
+# Kalman Filter 
+# ==============
+KF = MultipleKalmanDerivator(dt)
 
 # =============================================================
 # 				Initial configuration
@@ -89,6 +96,10 @@ dddx_act = np.zeros(7)
 # Past velocity and acceleration
 dx_act_p  = np.zeros(7)
 ddx_act_p = np.zeros(7)
+
+# acceleration and jerk with euler
+ddx_act_euler = np.zeros(7)
+dddx_act_euler = np.zeros(7)
 
 # Error angular position, velocity and acceleration
 x_e    = np.zeros(7)
@@ -144,7 +155,9 @@ column_names = [
 	'u1', 'u2', 'u3', 'u4', 'u5', 'u6',
 	's1', 's2', 's3', 's4', 's5', 's6', 's7',
 	'ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6', 'ds7',	
-	'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7'
+	'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7',
+	'q1', 'q2', 'q3', 'q4', 'q5', 'q6',
+	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6'
 	]
 
 df = pd.DataFrame(columns=column_names)
@@ -153,8 +166,9 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d-%m-%Y_%H-%M-%S")
 fn = now
-fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
-
+#fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
+#fn = "radio_30_mm.csv"
+fn = "prueba_kalman.csv"
 # Creates folder if it does not exist
 if not os.path.exists(folder):
 	os.makedirs(folder)
@@ -176,7 +190,7 @@ Nota: Agregar criterio de convergencia, el sistema se vuelve inestable por el er
 
 while not rospy.is_shutdown():
 	# desired values (cartesian space)
-	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(t)
+	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(1*t)
 
 	#Jacobian
 	J = jacobian_pose_ur5(q)
@@ -186,9 +200,12 @@ while not rospy.is_shutdown():
 	x_act[0:7]  = get_current_pose(q)
 	dx_act[0:7] = get_current_dpose(q, dq)
 
-	# Estimation of current acceleration and jerk of UR5 end-effector 
-	ddx_act     = (dx_act - dx_act_p)/dt 
-	dddx_act    = (ddx_act - ddx_act_p)/dt 
+	# Estimation of current acceleration and jerk with kalman filter
+	_, ddx_act, dddx_act  = KF.update(dx_act)
+	
+	# Estimation of current acceleration and jerk with euler 
+	ddx_act_euler     = (dx_act - dx_act_p)/dt 
+	dddx_act_euler    = (ddx_act - ddx_act_p)/dt 
 	# Past values
 	dx_act_p 	= copy(dx_act) 
 	ddx_act_p   = copy(ddx_act)
@@ -279,18 +296,20 @@ while not rospy.is_shutdown():
 	#print("crit: ", np.round(1000*crit[0:3], 2))
 	#print("crit: ", np.sqrt(np.sum(np.power(crit[3:7],2))) )
 	#print("c:  ", c[0:3])
-	#print("dJ_Lambda: ", np.multiply(alpha,dJ_Lambda))
+	print("dJ_Lambda: ", -np.multiply(alpha,dJ_Lambda)[0:3])
 	print("e   (mm): ", np.round(1000*x_e[0:3], 2))
 	print("de  (mm): ", np.round(1000*dx_e[0:3],2))
-	print("dde (mm): ", np.round(1000*ddx_e[0:3],2))
-	print("ddde(mm): ", np.round(1000*dddx_e[0:3],2))	
+	#print("dde (mm): ", np.round(1000*ddx_e[0:3],2))
+	#print("ddde(mm): ", np.round(1000*dddx_e[0:3],2))	
 	print("\n")
 	
 
 
 	# Append data
 	#row = tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)
-	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)
+	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(ddx_act_euler)+tl(dddx_act_euler)+\
+		  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
+		  tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)+tl(q)+tl(dq)
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
 	# Fix for redimensionality
@@ -301,7 +320,7 @@ while not rospy.is_shutdown():
 	# Time
 	t = t + dt
 
-	if t>=(60):
+	if t>=(20):
 		print("Reached maximum of steps \n\n")
 		break
 
