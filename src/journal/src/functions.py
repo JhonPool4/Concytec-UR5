@@ -283,7 +283,7 @@ def eight_trajectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.05                                  #   [m] 
+    r_circ  = 0.1                                  #   [m] 
 
     # Parameters of circular trayetory     
     f = 0.2                       # frecuency     [Hz]
@@ -330,7 +330,7 @@ def circular_trayectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.05#1                                   #   [m] 
+    r_circ  = 0.03#1                                   #   [m] 
 
     # Parameters of circular trayetory     
     f           = 0.1                       # frecuency     [Hz]
@@ -416,7 +416,7 @@ def star_trayectory_generator(t, dt, T):
     y_min   = y_paciente + 0.20*l                   #   [m]
     r_circ  = 0.1                                   #   [m] 
 
-    # Parameters of circular trayetory     
+    # Parameters of star trayetory     
     f           = 0.2                       # frecuency     [Hz]
     w           = 2*np.pi*f                 # angular velocity [rad/s]
 
