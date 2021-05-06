@@ -10,39 +10,41 @@ import os
 from numpy.linalg import inv
 from numpy import matmul as mx
 
-class KalmanDerivator:
+class MultipleKalmanDerivator:
     def __init__(self, deltaT, ndof = 7):
-        self.q_v = np.zeros(ndof)
-        self.dq_v = np.zeros(ndof)
-        self.ddq_v = np.zeros(ndof)
+        self.x_v = np.zeros(ndof)
+        self.dx_v = np.zeros(ndof)
+        self.ddx_v = np.zeros(ndof)
         self.deltaT = deltaT
 
-        self.joint_spaces = [Joint(self.deltaT),
-							 Joint(self.deltaT), 
-							 Joint(self.deltaT), 
-							 Joint(self.deltaT), 
-							 Joint(self.deltaT), 
-							 Joint(self.deltaT)]
+        self.derivators =   [KalmanDerivator(self.deltaT),
+							 KalmanDerivator(self.deltaT), 
+							 KalmanDerivator(self.deltaT), 
+							 KalmanDerivator(self.deltaT), 
+							 KalmanDerivator(self.deltaT),
+                             KalmanDerivator(self.deltaT), 
+							 KalmanDerivator(self.deltaT),
+                             ]
 
-    def update(self, q_update):
-        q_v = []
-		dq_v = []
-		ddq_v = []
+    def update(self, x_update):
+        x_v = []
+		dx_v = []
+		ddx_v = []
 
-		for i, _ in enumerate(self.joint_spaces):
-			q, dq, ddq = self.joint_spaces[i].kalman_filter(q_update[i])
-			q_v.append(q)
-			dq_v.append(dq)
-			ddq_v.append(ddq)
+		for i, _ in enumerate(self.derivators):
+			x, dx, ddx = self.derivators[i].kalman_filter(x_update[i])
+			x_v.append(x)
+			dx_v.append(dx)
+			ddx_v.append(ddx)
 
-		self.q_v = np.array(q_v)
-		self.dq_v = np.array(dq_v)
-		self.ddq_v = np.array(ddq_v)
+		self.x_v = np.array(x_v)
+		self.dx_v = np.array(dx_v)
+		self.ddx_v = np.array(ddx_v)
 
-        return self.q_v, self.dq_v, self.ddq_v 
+        return self.x_v, self.dx_v, self.ddx_v 
 
 
-class Joint:
+class KalmanDerivator:
     def __init__(self, deltaT):
         self.deltaT = deltaT
         
@@ -79,8 +81,8 @@ class Joint:
 
         #Update
         self.x_k_k = self.x_k1_k + mx(self.K, (z - mx(H, self.x_k1_k)))
-        #self.P_k_k = mx(mx((self.I - mx(self.K, H)), self.P_k1_k), np.transpose(self.I - mx(self.K, H))) + mx(self.K, mx(self.R, np.transpose(self.K))) 
-        self.P_k_k = mx(self.I - mx(self.K,H), self.P_k1_k)
+        self.P_k_k = mx(mx((self.I - mx(self.K, H)), self.P_k1_k), np.transpose(self.I - mx(self.K, H))) + mx(self.K, mx(self.R, np.transpose(self.K))) 
+        #self.P_k_k = mx(self.I - mx(self.K,H), self.P_k1_k)
 
         self.K = mx(mx(self.P_k1_k, np.transpose(H)), inv(mx(H, mx(self.P_k1_k, np.transpose(H))) + self.R))   
         
