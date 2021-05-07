@@ -90,7 +90,7 @@ class KalmanDerivator:
 
 
 class MultipleKalmanIntegrator:
-    def __init__(self, deltaT, ndof = 7):
+    def __init__(self, deltaT, ndof = 6):
         self.x_v = np.zeros(ndof)
         self.dx_v = np.zeros(ndof)
         self.ddx_v = np.zeros(ndof)
@@ -102,7 +102,6 @@ class MultipleKalmanIntegrator:
                              KalmanIntegrator(self.deltaT), 
                              KalmanIntegrator(self.deltaT),
                              KalmanIntegrator(self.deltaT), 
-                             KalmanIntegrator(self.deltaT),
                              ]
 
     def update(self, ddx_update):
