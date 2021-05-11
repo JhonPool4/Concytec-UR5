@@ -8,6 +8,7 @@ import math
 from copy import copy
 import rbdl
 import os
+from kalman import * # kalman filter
 
 pi=np.pi
 
@@ -203,6 +204,8 @@ class Robot(object):
         self.dt = dt
         self.robot = rbdl.loadModel(os.path.join(cwd,'../../ur5_description/urdf/ur5_joint_limited_robot.urdf'))
 
+        self.KF = MultipleKalmanIntegrator(dt) 
+
     def send_command(self, tau):
         tau = np.squeeze(np.asarray(tau))
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
@@ -210,8 +213,13 @@ class Robot(object):
 
         self.ddq = np.linalg.inv(self.M).dot(tau-self.b)
         self.dq = self.dq + self.dt*self.ddq
-        self.q = self.q + self.dt*self.dq
-        
+        self.q = self.q + self.dt*self.dq      
+
+        self.q_k, self.dq_k, self.ddq_k = self.KF.update(self.ddq)
+
+    def get_kalman(self):
+        return self.q_k, self.dq_k, self.ddq_k
+
     def read_joint_positions(self):
         return self.q
 
@@ -285,7 +293,7 @@ def eight_trajectory_generator(t):
     y_min   = y_paciente + 0.20*l                   #   [m]
     r_circ  = 0.1                                  #   [m] 
 
-    # Parameters of circular trayetory     
+    # Parameters of eight trayetory     
     f = 0.2                       # frecuency     [Hz]
     w = 2*np.pi*f                 # angular velocity [rad/s]
 
@@ -330,7 +338,7 @@ def circular_trayectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.03#1                                   #   [m] 
+    r_circ  = 0.02#1                                   #   [m] 
 
     # Parameters of circular trayetory     
     f           = 0.1                       # frecuency     [Hz]
