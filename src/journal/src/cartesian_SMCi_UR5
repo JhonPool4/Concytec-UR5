@@ -60,7 +60,7 @@ jstate = JointState()
 # Loop rate (in Hz)
 f       = 100 				# [Hz]
 rate 	= rospy.Rate(f)		# [Hz]
-dt 		= 1e-2				# 100 ms
+dt 		= 1e-2				# 10 ms
 
 # ==============
 # Kalman Filter 
@@ -137,27 +137,23 @@ suffix 	= 'circular_traj'
 folder = os.path.join(cwd, origin, suffix)
 
 column_names = [
-	'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
-	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',	
-	'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
 	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
-	'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
-	'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
-	'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
-	'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des',
+	'dddx_d', 'dddy_d', 'dddz_d', 'dddw_d', 'dddex_d', 'dddey_d', 'dddez_d',
+	'dddx_k', 'dddy_k', 'dddz_k', 'dddw_k', 'dddex_k', 'dddey_k', 'dddez_k',
+	
+	'ddx_k', 'ddy_k', 'ddz_k', 'ddw_k', 'ddex_k', 'ddey_k', 'ddez_k',
+	
 	'e_x', 'e_y', 'e_z', 'e_w', 'e_ex', 'e_ey', 'e_ez',
 	'de_x', 'de_y', 'de_z', 'de_w', 'de_ex', 'de_ey', 'de_ez',
 	'dde_x', 'dde_y', 'dde_z', 'dde_w', 'dde_ex', 'dde_ey', 'dde_ez',
-	'kp1', 'kp2', 'kp3', 'kp4', 'kp5', 'kp6', 'kp7',
-	'dkp1', 'dkp2', 'dkp3', 'dkp4', 'dkp5', 'dkp6', 'dkp7',
-	'kd1', 'kd2', 'kd3', 'kd4', 'kd5', 'kd6', 'kd7',
-	'dkd1', 'dkd2', 'dkd3', 'dkd4', 'dkd5', 'dkd6', 'dkd7',
-	'u1', 'u2', 'u3', 'u4', 'u5', 'u6',
-	's1', 's2', 's3', 's4', 's5', 's6', 's7',
-	'ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6', 'ds7',	
-	'J1', 'J2', 'J3', 'J4', 'J5', 'J6', 'J7',
+	'ddde_x', 'ddde_y', 'ddde_z', 'ddde_w', 'ddde_ex', 'ddde_ey', 'ddde_ez',	
+	
 	'q1', 'q2', 'q3', 'q4', 'q5', 'q6',
-	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6'
+	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6',
+	'ddq1', 'ddq2', 'ddq3', 'ddq4', 'ddq5', 'ddq6',
+	'q1_k', 'q2_k', 'q3_k', 'q4_k', 'q5_k', 'q6_k',
+	'dq1_k', 'dq2_k', 'dq3_k', 'dq4_k', 'dq5_k', 'dq6_k',
+	'ddq1_k', 'ddq2_k', 'ddq3_k', 'ddq4_k', 'ddq5_k', 'ddq6_k'	
 	]
 
 df = pd.DataFrame(columns=column_names)
@@ -169,6 +165,7 @@ fn = now
 #fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
 #fn = "radio_30_mm.csv"
 fn = "prueba_kalman.csv"
+
 # Creates folder if it does not exist
 if not os.path.exists(folder):
 	os.makedirs(folder)
@@ -180,13 +177,6 @@ df.to_csv(path, index=False)
 # 		Dynamic simulation
 # ================================
 t = 0.0
-#Jp = np.zeros([7,6])
-
-"""
-Nota: Agregar criterio de convergencia, el sistema se vuelve inestable por el error en y que luego pasa a x
-
-"""
-
 
 while not rospy.is_shutdown():
 	# desired values (cartesian space)
@@ -196,16 +186,21 @@ while not rospy.is_shutdown():
 	J = jacobian_pose_ur5(q)
 	J_inv = np.linalg.pinv(J)
 
+	J_det = [np.linalg.norm(J)]
+	J_inv_det = [np.linalg.norm(J_inv)]
+
+
 	# Current position and velocity of UR5 end-effector
 	x_act[0:7]  = get_current_pose(q)
 	dx_act[0:7] = get_current_dpose(q, dq)
 
+
 	# Estimation of current acceleration and jerk with kalman filter
-	_, ddx_act, dddx_act  = KF.update(dx_act)
-	
+	_, ddx_act_kalman, dddx_act_kalman  = KF.update(dx_act)
+		
 	# Estimation of current acceleration and jerk with euler 
-	ddx_act_euler     = (dx_act - dx_act_p)/dt 
-	dddx_act_euler    = (ddx_act - ddx_act_p)/dt 
+	ddx_act     = (dx_act - dx_act_p)/dt 
+	dddx_act    = (ddx_act - ddx_act_p)/dt 
 	# Past values
 	dx_act_p 	= copy(dx_act) 
 	ddx_act_p   = copy(ddx_act)
@@ -240,6 +235,10 @@ while not rospy.is_shutdown():
 	# Read position, velocity, and acceleration angular of UR5 joints
 	q  		= UR5_robot.read_joint_positions()
 	dq 		= UR5_robot.read_joint_velocities()
+	ddq 	= UR5_robot.read_joint_accelerations()
+
+	# Read position and velocity with kalman filter
+	q_k, dq_k, ddq_k 	= UR5_robot.get_kalman()
 
 	# Publish message
 	jstate.header.stamp = rospy.Time.now()
@@ -287,16 +286,18 @@ while not rospy.is_shutdown():
 
 	# Print
 	print("t: ", t)
+	#print("k: ", ddx_act_kalman[0:3])
+	#print("e: ", ddx_act[0:3])	
 	print("Lambda: ", Lambda[0:3])
 	print("Lambda: ", Lambda[3:7])
 	print("s: ", np.round(1000*s[0:3], 2))
 	print("ds: ",np.round(1000*ds[0:3], 2))
-	print("crit_p: ", crit_p)
-	print("crit_o: ", crit_o)
+	#print("crit_p: ", crit_p)
+	#print("crit_o: ", crit_o)
 	#print("crit: ", np.round(1000*crit[0:3], 2))
 	#print("crit: ", np.sqrt(np.sum(np.power(crit[3:7],2))) )
 	#print("c:  ", c[0:3])
-	print("dJ_Lambda: ", -np.multiply(alpha,dJ_Lambda)[0:3])
+	#print("dJ_Lambda: ", -np.multiply(alpha,dJ_Lambda)[0:3])
 	print("e   (mm): ", np.round(1000*x_e[0:3], 2))
 	print("de  (mm): ", np.round(1000*dx_e[0:3],2))
 	#print("dde (mm): ", np.round(1000*ddx_e[0:3],2))
@@ -307,9 +308,15 @@ while not rospy.is_shutdown():
 
 	# Append data
 	#row = tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)
-	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(ddx_act_euler)+tl(dddx_act_euler)+\
-		  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
-		  tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)+tl(q)+tl(dq)
+	#row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(ddx_act_kalman)+tl(dddx_act_kalman)+\
+	#	  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
+	#	  tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)+tl(q)+tl(dq)+\
+	#	  (J_det)+ (J_inv_det)
+
+
+	row = tl(dddx_act)+tl(dddx_des)+tl(dddx_act_kalman)+\
+		  tl(ddx_act_kalman)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(q)+tl(dq)+tl(ddq)+\
+		  tl(q_k)+tl(dq_k)+tl(ddq_k)
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
 	# Fix for redimensionality
