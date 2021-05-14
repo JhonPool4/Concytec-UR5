@@ -136,6 +136,9 @@ origin 	= './Data/SMCi'
 suffix 	= 'circular_traj'
 folder = os.path.join(cwd, origin, suffix)
 
+
+
+
 column_names = [
 	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
 	'dddx_d', 'dddy_d', 'dddz_d', 'dddw_d', 'dddex_d', 'dddey_d', 'dddez_d',
@@ -335,7 +338,3 @@ while not rospy.is_shutdown():
 	rate.sleep()
 
 print('out because ctrl + c. Data saved.')
-
-
-
-
