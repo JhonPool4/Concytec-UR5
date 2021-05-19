@@ -150,7 +150,7 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
     k               = np.diag([k_p, k_p, k_p, k_o, k_o, k_o, k_o])
     best_norm_e1    = 10e-3
     best_norm_e2    = 10e-3
-    max_iter        = 50
+    max_iter        = 10
     delta           = 0.01
     q               = copy(q0)
 
