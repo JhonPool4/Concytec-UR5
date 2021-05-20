@@ -1,0 +1,17 @@
+
+
+Simulation parameters:
+---------------------
+
+	Fixed parameters:
+	----------------
+	- Circular trajectory of radius 0.5 m in the XY plane.
+	- Sinusoidal trajectory of amplitude 0.2 m in the Z axis.
+	- Trayectories period of 10 seconds.
+	- Control signals are sent to robto each 10 ms.
+
+	Parameters to tune:
+	------------------
+	- Lambda: Initial value of control gain.
+	- Alpha : Learning rate. This value was tested for: 0.1, 0.15, 0.20, 0.25.
+
