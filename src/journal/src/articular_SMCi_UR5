@@ -60,13 +60,18 @@ dq_des_m1   = np.zeros(ndof)
 ddq_des_m1  = np.zeros(ndof)
 
 # Desired angular position, velocity and acceleration
-q_des 	= copy(q) 
-dq_des = np.zeros(6)
-ddq_des = np.zeros(6) 
+q_des 	 = np.zeros(6)  
+dq_des   = np.zeros(6)
+ddq_des  = np.zeros(6)
+dddq_des = np.zeros(6)
+# First desired joint configuration
+q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5_configuration(q, dq, ddq) 
 
-# Desired cartesian position and velocity
-x_des 	 = np.array([0.0,   0.0,  0.0, 0.01676998,  0.99985616,  0.00251062,  0.00 ]) # fixed orientation
+# Desired cartesian position, velocity, acceleration and jerk
+x_des    = np.zeros(7)
+x_des[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
 dx_des 	 = np.zeros(7)
+
 ddx_des  = np.zeros(7)
 dddx_des = np.zeros(7)
 
@@ -104,9 +109,11 @@ UR5_robot = Robot(q, dq, ndof, dt)
 # ================================
 #alpha = 0.5*dt
 #gamma = 0.9
-alpha = 10*dt
+alpha = 80*dt
 gamma = 1.0
-Lambda = 0.5*np.array([1, 1, 1, 1, 1, 1])#np.eye(ndof)
+beta  = 0.001
+Lambda = 0.5*np.array([1, 1, 1, 1, 1, 1])
+dLambda = np.zeros(6)
 
 dJ_Lambda = np.zeros(ndof)
 
@@ -128,21 +135,29 @@ column_names = [
 	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',	
 	'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
 	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
+
 	'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
 	'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
 	'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
 	'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des',
+
 	'e_x', 'e_y', 'e_z', 'e_w', 'e_ex', 'e_ey', 'e_ez',
 	'de_x', 'de_y', 'de_z', 'de_w', 'de_ex', 'de_ey', 'de_ez',
 	'dde_x', 'dde_y', 'dde_z', 'dde_w', 'dde_ex', 'dde_ey', 'dde_ez',
-	'ddde_x', 'ddde_y', 'ddde_z', 'ddde_w', 'ddde_ex', 'ddde_ey', 'ddde_ez',
-	'lambda1', 'lambda2', 'lambda3', 'lambda4', 'lambda5', 'lambda6',
-	'dlambda1', 'dlambda2', 'dlambda3', 'dlambda4', 'dlambda5', 'dlambda6',
-	'dJ_lambda1', 'dJ_lambda2', 'dJ_lambda3', 'dJ_lambda4', 'dJ_lambda5', 'dJ_lambda6',
-	'u1', 'u2', 'u3', 'u4', 'u5', 'u6',
-	's1', 's2', 's3', 's4', 's5', 's6',
-	'ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6',	
-	'J1', 'J2', 'J3', 'J4', 'J5', 'J6'
+	'ddde_x', 'ddde_y', 'ddde_z', 'ddde_w', 'ddde_ex', 'ddde_ey', 'ddde_ez',	
+	
+	'q1', 'q2', 'q3', 'q4', 'q5', 'q6',
+	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6',
+	'ddq1', 'ddq2', 'ddq3', 'ddq4', 'ddq5', 'ddq6',
+
+	'q1_des', 'q2_des', 'q3_des', 'q4_des', 'q5_des', 'q6_des',
+	'dq1_des', 'dq2_des', 'dq3_des', 'dq4_des', 'dq5_des', 'dq6_des',
+	'ddq1_des', 'ddq2_des', 'ddq3_des', 'ddq4_des', 'ddq5_des', 'ddq6_des',
+
+	'L1', 'L2', 'L3', 'L4', 'L5', 'L6',
+
+	'P1', 'P2', 'P3', 'P4', 'P5', 'P6',
+	'J1', 'J2', 'J3', 'J4', 'J5', 'J6' 
 	]
 
 df = pd.DataFrame(columns=column_names)
@@ -151,7 +166,8 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
-fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_gamma_"+str(gamma)+"v2.csv"
+#fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
+fn = "borrar_test"
 
 # Creates folder if it does not exist
 
@@ -173,8 +189,12 @@ while not rospy.is_shutdown():
 	de 	=  dq_des - dq
 	dde =  ddq_des - ddq
 
+	# s and ds
+	s  = np.multiply(np.multiply(Lambda, Lambda), e) + 2*np.multiply(Lambda, de)
+	ds = 2*np.multiply(np.multiply(Lambda, dLambda), e) + np.multiply(np.multiply(Lambda, Lambda), de) + 2*np.multiply(dLambda, de) + 2*np.multiply(Lambda, dde)	
+
 	# Calcular b y M
-	rbdl.NonlinearEffects(modelo, q, dq, b)
+	#rbdl.NonlinearEffects(modelo, q, dq, b)
 	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
 
 	# SMC articular + Feedback linearization
@@ -205,6 +225,7 @@ while not rospy.is_shutdown():
 	# Estimation of current acceleration and jerk of UR5 end-effector 
 	ddx_act     = (dx_act - dx_act_p)/dt 
 	dddx_act    = (ddx_act - ddx_act_p)/dt
+	
 	# Past values
 	dx_act_p 	= copy(dx_act) 
 	ddx_act_p   = copy(ddx_act)
@@ -215,34 +236,34 @@ while not rospy.is_shutdown():
 	ddx_e[0:7] = compute_error_ddpose(ddx_des, ddx_act)
 	dddx_e[0:7]= compute_error_dddpose(dddx_des, dddx_act)
 
-
 	# Derivative of Kp and Kd
 	dLambda = -(alpha/dt) * (dJ_Lambda)
-	
-	# s and ds
-	s  = np.multiply(np.multiply(Lambda, Lambda), e) + 2*np.multiply(Lambda, de)
-	ds = 2*np.multiply(np.multiply(Lambda, dLambda), e) + np.multiply(np.multiply(Lambda, Lambda), de) + 2*np.multiply(dLambda, de) + 2*np.multiply(Lambda, dde)	
+
+	# special parameters
+	tanh2 = np.multiply(np.tanh(s),np.tanh(s))
+	P1 = copy(s)
+	P2 = np.multiply(ds, 2-tanh2)
 	
 	#cost function
-	c = gamma *0.5*np.multiply(s,s) + (1-gamma)*0.5*np.multiply(ds,ds)
+	c = gamma *0.5*np.multiply(P1,P1) + beta*0.5*np.multiply(P2,P2) 	# [6x1]
 	
 	# Gradient descent
-	dJ_s    = gamma * s    						# [6x1]
-	ds_q    = -np.multiply(Lambda, Lambda)		# [6x1]
+	dP1_q = -np.multiply(Lambda, Lambda) 								# [6x1]
+	dP2_q = -2*np.multiply(np.multiply(Lambda, dLambda), 2-tanh2) \
+			+2*np.multiply(np.multiply(np.multiply(Lambda, Lambda), ds), \
+			 np.multiply(np.tanh(s), 1- tanh2))							# [6x1]
 
-	dJ_ds   = (1-gamma)*ds 						# [6x1]
-	dds_q   =  -2*np.multiply(Lambda, dLambda) 	# [6x1]
+	dJ_q = gamma*np.multiply(P1, dP1_q) + beta*np.multiply(P2, dP2_q)	# [6x1]
 
-	first  =  np.multiply(2-np.multiply(np.tanh(s),np.tanh(s)), np.multiply(Lambda, e) + de ) # [6x1]
-	du_Lambda = 2*np.dot(M, first) 				# [6x1]
+	du_Lambda = 2*np.dot(M, np.multiply(2-tanh2, np.multiply(Lambda, e) + de ))	# [6x1]
 
-	dJ_Lambda1 = np.multiply(np.multiply(dJ_s,   ds_q), du_Lambda) 
-	dJ_Lambda2 = np.multiply(np.multiply(dJ_ds, dds_q), du_Lambda)
-	dJ_Lambda =  dJ_Lambda1 + dJ_Lambda2
-
+	dJ_Lambda =  np.multiply(dJ_q, du_Lambda)							# [6x1]
 
 	# New value of Lambda
-	Lambda = Lambda - alpha*dJ_Lambda
+	crit_p = (180/pi)*np.sqrt(np.sum(np.power(s[0:6],2))) 	#[mm]
+	#if crit_p > np.sqrt(6):
+	Lambda[0:6] = Lambda[0:6] - alpha*dJ_Lambda[0:6] 	#[3x1]
+
 	
 	t = t + dt
 
@@ -252,17 +273,30 @@ while not rospy.is_shutdown():
 	
 	# Print
 	print("t: ", t)
-	print("Lambda: ", Lambda) 
-	print("c:  ", c)
-	print("e   (mm): ", np.round(1000*x_e[0:3], 1))
-	print("de  (mm): ", np.round(1000*dx_e[0:3],1))
-	print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
-	print("ddde(mm): ", np.round(1000*dddx_e[0:3],1))	
+	#print("Lambda: ", Lambda) 
+	#print("c:  ", c)
+	#print("crit_p: ", crit_p)
+	#print("e   (mm): ", np.round(1000*x_e[0:3], 1))
+	#print("de  (mm): ", np.round(1000*dx_e[0:3],1))
+	#print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
+	#print("ddde(mm): ", np.round(1000*dddx_e[0:3],1))	
 	print("\n")
 
 	# Append data
 	#row = tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)
-	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)
+	#row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+ \
+	#	  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+ \
+	#	  tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
+	#	  tl(Lambda)+tl(dLambda)+tl(dJ_Lambda)+tl(u)+tl(s)+tl(ds)+tl(c)
+	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+\
+		  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+\
+		  tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
+		  tl(q)+tl(dq)+tl(ddq)+\
+		  tl(q_des)+tl(dq_des)+tl(ddq_des)+\
+		  tl(Lambda)+\
+		  tl(P1)+\
+		  tl(P2)	
+
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
 	# Fix for redimensionality
@@ -270,7 +304,7 @@ while not rospy.is_shutdown():
 
 	df.append(df_row, sort = False).to_csv(path, index=False, mode = 'a', header=False)
 
-	if t>=(60):
+	if t>=(10): # simulation time equal to 1 min
 		print("Reached maximum of steps")
 		break
 
