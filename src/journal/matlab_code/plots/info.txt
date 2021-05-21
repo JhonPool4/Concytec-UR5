@@ -9,9 +9,37 @@ Simulation parameters:
 	- Sinusoidal trajectory of amplitude 0.2 m in the Z axis.
 	- Trayectories period of 10 seconds.
 	- Control signals are sent to robto each 10 ms.
+	- we use a ikine_pose_ur5_configuration to reduce the error of
+	  the first q, ddq, ddq obtained with ikine_pose_ur5. 
+	- We set ikine_pose_ur5 to just do 10 iteration and obtain pose error of 3e-5 
 
 	Parameters to tune:
 	------------------
-	- Lambda: Initial value of control gain.
-	- Alpha : Learning rate. This value was tested for: 0.1, 0.15, 0.20, 0.25.
+	- Lambda: Initial value of control gain. This value was tested for: 0.5.
+	- Alpha : Learning rate. This value was tested for: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8.
+	- Gamma and Beta: parameters to focus optimization on position or jerk. Consider gamma+beta = 1
+
+
+Observations:
+------------
+
+- Two peaks has been observed with cartesian control. This could be generated for a weird joint configuration.
+- Articular control shown a good performance to reduce error in joint coordinates. However, litle error in joint space
+  could generate considerable error on cartesian space. The proposed control squeme generates that the error converge to zero
+  when simulation time tends to infinite.  
+
+- The relation between first and second parameter of cost function is 1000. For this reason we scale the second parameter over 1000.
+  
+
+To Do:
+-----
+- Simulate for 600 seconds the articular controller with alpha 0.1, 0.5 and 0.8.
+- Generate a plot that compare the performance of three values of alpha.
+- Generate a plot thatn compare the measured control signal with cartesian and articular control squeme 
+- Generate a plot that compare the measured angular position with cartesian and articular control squeme.
+- Implement the algorithm for PD control method.
+
+- Generate a plot that compare sliding and PD control method. [Final]
+
+- Write journal.
 
