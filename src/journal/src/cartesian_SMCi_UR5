@@ -82,7 +82,8 @@ ddq_des  = np.zeros(ndof)
 dddq_des = np.zeros(ndof)
 
 # Desired cartesian position and velocity
-x_des 	 = np.array([0.0, 0.0,  0.0, 0.01676998,  0.99985616,  0.00251062,  0.00 ])
+x_des    = np.zeros(7)
+x_des[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
 dx_des 	 = np.zeros(7)
 ddx_des  = np.zeros(7)
 dddx_des = np.zeros(7)
@@ -123,13 +124,11 @@ UR5_robot = Robot(q, dq, ndof, dt)
 # ================================
 # 			SMC controller
 # ================================
-#('Lambda: ', array([10.3880215 ,  9.91367682, 10.0220704 ]))
-#('Lambda: ', array([0.99999997, 1.0030892 , 1.00162273, 1.00003591]))
-
-alpha = 0*1*dt*dt*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
-#Lambda = 10*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
+alpha  = 1*dt*dt*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
 Lambda = 10*np.array([1, 1, 1, 0.1, 0.1, 0.1, 0.1])
-gamma = 1.0
+gamma  = 0.999
+beta   = 0.001
+
 dJ_Lambda = np.zeros(7)
 dLambda   = np.zeros(7)
 
@@ -141,12 +140,16 @@ suffix 	= 'circular_traj'
 folder = os.path.join(cwd, origin, suffix)
 
 column_names = [
+	'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
+	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',	
+	'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
 	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
-	'dddx_d', 'dddy_d', 'dddz_d', 'dddw_d', 'dddex_d', 'dddey_d', 'dddez_d',
-	'dddx_k', 'dddy_k', 'dddz_k', 'dddw_k', 'dddex_k', 'dddey_k', 'dddez_k',
-	
-	'ddx_k', 'ddy_k', 'ddz_k', 'ddw_k', 'ddex_k', 'ddey_k', 'ddez_k',
-	
+
+	'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
+	'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
+	'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
+	'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des',
+
 	'e_x', 'e_y', 'e_z', 'e_w', 'e_ex', 'e_ey', 'e_ez',
 	'de_x', 'de_y', 'de_z', 'de_w', 'de_ex', 'de_ey', 'de_ez',
 	'dde_x', 'dde_y', 'dde_z', 'dde_w', 'dde_ex', 'dde_ey', 'dde_ez',
@@ -155,9 +158,15 @@ column_names = [
 	'q1', 'q2', 'q3', 'q4', 'q5', 'q6',
 	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6',
 	'ddq1', 'ddq2', 'ddq3', 'ddq4', 'ddq5', 'ddq6',
-	'q1_k', 'q2_k', 'q3_k', 'q4_k', 'q5_k', 'q6_k',
-	'dq1_k', 'dq2_k', 'dq3_k', 'dq4_k', 'dq5_k', 'dq6_k',
-	'ddq1_k', 'ddq2_k', 'ddq3_k', 'ddq4_k', 'ddq5_k', 'ddq6_k'	
+
+	'q1_des', 'q2_des', 'q3_des', 'q4_des', 'q5_des', 'q6_des',
+	'dq1_des', 'dq2_des', 'dq3_des', 'dq4_des', 'dq5_des', 'dq6_des',
+	'ddq1_des', 'ddq2_des', 'ddq3_des', 'ddq4_des', 'ddq5_des', 'ddq6_des',
+
+	'L1', 'L2', 'L3', 'L4', 'L5', 'L6',
+
+	'P1', 'P2', 'P3', 'P4', 'P5', 'P6',
+	'J1', 'J2', 'J3', 'J4', 'J5', 'J6' 
 	]
 
 df = pd.DataFrame(columns=column_names)
@@ -166,7 +175,7 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d-%m-%Y_%H-%M-%S")
 fn = now
-#fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
+fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
 #fn = "radio_30_mm.csv"
 fn = "prueba_kalman.csv"
 
@@ -184,7 +193,7 @@ t = 0.0
 
 while not rospy.is_shutdown():
 	# desired values (cartesian space)
-	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(1*t)
+	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(t)
 
 	#Jacobian
 	J = jacobian_pose_ur5(q)
@@ -193,14 +202,12 @@ while not rospy.is_shutdown():
 	J_det = [np.linalg.norm(J)]
 	J_inv_det = [np.linalg.norm(J_inv)]
 
-
 	# Current position and velocity of UR5 end-effector
 	x_act[0:7]  = get_current_pose(q)
 	dx_act[0:7] = get_current_dpose(q, dq)
 
-
 	# Estimation of current acceleration and jerk with kalman filter
-	_, ddx_act_kalman, dddx_act_kalman  = KF.update(dx_act)
+	#_, ddx_act_kalman, dddx_act_kalman  = KF.update(dx_act)
 		
 	# Estimation of current acceleration and jerk with euler 
 	ddx_act     = (dx_act - dx_act_p)/dt 
@@ -217,19 +224,20 @@ while not rospy.is_shutdown():
 
 	# s and ds
 	s  = np.multiply(np.multiply(Lambda, Lambda), x_e) + 2*np.multiply(Lambda, dx_e)
-	ds = 2*np.multiply(np.multiply(Lambda, dLambda), x_e) + np.multiply(np.multiply(Lambda, Lambda), dx_e) + 2*np.multiply(dLambda, dx_e) + 2*np.multiply(Lambda, ddx_e)	
+	ds = 2*np.multiply(np.multiply(Lambda, dLambda), x_e) + np.multiply(np.multiply(Lambda, Lambda), dx_e) +\
+		 2*np.multiply(dLambda, dx_e) + 2*np.multiply(Lambda, ddx_e)	
 
 	# Get inertia matrix (M) and nonlinear effects vector (b)
-	rbdl.NonlinearEffects(modelo, q, dq, b)
+	#rbdl.NonlinearEffects(modelo, q, dq, b)
 	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
 
 	# Inertia matrix on operational space
-	b_x = F - np.dot(M_x, ddx_act)
+	b_x_est = F - np.dot(M_x, ddx_act)
 	M_x = np.dot(np.dot(J_inv.transpose(), M), J_inv)
 	#b_x = np.dot(J_inv.transpose(), b) - np.dot(np.dot(M_x, dJ), dq)	
 
 	# PD articular + Feedback linearization
-	F = M_x.dot(ddx_des + s + np.tanh(s)) + b_x
+	F = M_x.dot(ddx_des + s + np.tanh(s)) + b_x_est
 	u = np.dot( J.transpose() , F )	
 
 	# Send control signal
@@ -242,7 +250,7 @@ while not rospy.is_shutdown():
 	ddq 	= UR5_robot.read_joint_accelerations()
 
 	# Read position and velocity with kalman filter
-	q_k, dq_k, ddq_k 	= UR5_robot.get_kalman()
+	#q_k, dq_k, ddq_k 	= UR5_robot.get_kalman()
 
 	# Publish message
 	jstate.header.stamp = rospy.Time.now()
@@ -252,26 +260,27 @@ while not rospy.is_shutdown():
 	pub.publish(jstate)	
 
 	# Derivative of Kp and Kd
-	#dLambda = -(alpha/dt) * (dJ_Lambda)
 	dLambda = -(1/dt)*np.multiply(alpha, dJ_Lambda)
-	
+
+	# special parameters
+	tanh2 = np.multiply(np.tanh(s),np.tanh(s))
+	P1 = copy(s)
+	P2 = np.multiply(ds, 2-tanh2)
+
 	#cost function
-	c = gamma *0.5*np.multiply(s,s) + (1-gamma)*0.5*np.multiply(ds,ds)
+	c = gamma *0.5*np.multiply(P1,P1) + beta*0.5*np.multiply(P2,P2) 	# [7x1]
 	
 	# Gradient descent
-	dJ_s    = gamma*s 							# [7x1]
-	ds_q    = -np.multiply(Lambda, Lambda)		# [7x1]
+	dP1_x = -np.multiply(Lambda, Lambda) 								# [7x1]
+	dP2_x = -2*np.multiply(np.multiply(Lambda, dLambda), 2-tanh2) \
+			+2*np.multiply(np.multiply(np.multiply(Lambda, Lambda), ds), 
+			 np.multiply(np.tanh(s), 1- tanh2))							# [7x1]
 
-	dJ_ds   = (1-gamma)*ds 						# [7x1]
-	dds_q   =  -2*np.multiply(Lambda, dLambda) 	# [7x1]
+	dJ_x = gamma*np.multiply(P1, dP1_x) + beta*np.multiply(P2, dP2_x)	# [7x1]
 
-	first  =  np.multiply(2-np.multiply(np.tanh(s),np.tanh(s)), np.multiply(Lambda, x_e) + dx_e ) # [7x1]
-	du_Lambda = 2*np.dot(M_x, first) 				# [7x1]
+	du_Lambda = 2*np.dot(M, np.multiply(2-tanh2, np.multiply(Lambda, x_e) + dx_e ))	# [7x1]
 
-	dJ_Lambda1 = np.multiply(np.multiply(dJ_s,   ds_q), du_Lambda) 
-	dJ_Lambda2 = np.multiply(np.multiply(dJ_ds, dds_q), du_Lambda)
-	dJ_Lambda =  dJ_Lambda1 + dJ_Lambda2
-
+	dJ_Lambda =  np.multiply(dJ_x, du_Lambda)							# [7x1]
 
 	# New value of Lambda
 	crit_p = 1000*np.sqrt(np.sum(np.power(s[0:3],2))) 	#[mm]
@@ -318,9 +327,19 @@ while not rospy.is_shutdown():
 	#	  (J_det)+ (J_inv_det)
 
 
-	row = tl(dddx_act)+tl(dddx_des)+tl(dddx_act_kalman)+\
-		  tl(ddx_act_kalman)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(q)+tl(dq)+tl(ddq)+\
-		  tl(q_k)+tl(dq_k)+tl(ddq_k)
+	#row = tl(dddx_act)+tl(dddx_des)+tl(dddx_act_kalman)+\
+	#	  tl(ddx_act_kalman)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(q)+tl(dq)+tl(ddq)+\
+	#	  tl(q_k)+tl(dq_k)+tl(ddq_k)
+	
+	row = tl(x_act)+tl(dx_act)+tl(ddx_act)+tl(dddx_act)+\
+		  tl(x_des)+tl(dx_des)+tl(ddx_des)+tl(dddx_des)+\
+		  tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(dddx_e)+\
+		  tl(q)+tl(dq)+tl(ddq)+\
+		  tl(q_des)+tl(dq_des)+tl(ddq_des)+\
+		  tl(Lambda)+\
+		  tl(P1)+\
+		  tl(P2)
+
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
 	# Fix for redimensionality
@@ -331,7 +350,7 @@ while not rospy.is_shutdown():
 	# Time
 	t = t + dt
 
-	if t>=(20):
+	if t>=(60): # 1 min
 		print("Reached maximum of steps \n\n")
 		break
 
