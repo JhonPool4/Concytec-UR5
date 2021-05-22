@@ -3,7 +3,7 @@
 # ============================================================
 #	Curso   :   Concytec - UTEC
 # 	Alumno  :   Jhon Charaja
-# 	Info	:	articular PD controller for UR5 robot
+# 	Info	:	articular SMC controller for UR5 robot
 # ============================================================
 
 # ============================
@@ -152,6 +152,8 @@ column_names = [
 
 	'L1', 'L2', 'L3', 'L4', 'L5', 'L6',
 
+	'u1', 'u2', 'u3', 'u4', 'u5', 'u6',
+
 	'P1', 'P2', 'P3', 'P4', 'P5', 'P6',
 	'J1', 'J2', 'J3', 'J4', 'J5', 'J6' 
 	]
@@ -163,7 +165,7 @@ now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
 fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
-#fn = "borrar_test"
+#fn = "borrar_articular_test"
 
 # Creates folder if it does not exist
 
@@ -266,7 +268,7 @@ while not rospy.is_shutdown():
 	bmarker_act.xyz(x_act[0:3])	# Yellow
 	
 	# Print
-	print("t: ", t)
+	print("t: ", np.round(t,2))
 	#print("Lambda: ", Lambda) 
 	#print("c:  ", c)
 	#print("crit_p: ", crit_p)
@@ -288,6 +290,7 @@ while not rospy.is_shutdown():
 		  tl(q)+tl(dq)+tl(ddq)+\
 		  tl(q_des)+tl(dq_des)+tl(ddq_des)+\
 		  tl(Lambda)+\
+		  tl(u)+\
 		  tl(P1)+\
 		  tl(P2)	
 
