@@ -49,6 +49,17 @@ ndof   = modelo.q_size     # Degrees of Freedom
 # Generar objeto/espacio del vector b y M
 b = np.zeros(ndof)
 M = np.zeros((ndof,ndof))
+
+# Joints name of UR5 robot
+jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
+
+# Object(messague) type JointState
+jstate = JointState()
+
+# Loop rate (in Hz)
+rate 	= rospy.Rate(100)		# 100 [Hz]
+dt 		= 1e-2					# 10  [ms]
+
 # =============================================================
 # 				Set home joint configuration of UR5
 # =============================================================
@@ -56,8 +67,6 @@ M = np.zeros((ndof,ndof))
 q 		    = np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.53827725, -1.35006513]) # Center [0.5 +0.0 0.0]
 dq 			= np.zeros(ndof)
 ddq 		= np.zeros(ndof)
-dq_des_m1   = np.zeros(ndof)
-ddq_des_m1  = np.zeros(ndof)
 
 # Desired angular position, velocity and acceleration
 q_des 	 = np.zeros(6)  
@@ -71,7 +80,6 @@ q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5_configuration(q, dq, ddq)
 x_des    = np.zeros(7)
 x_des[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
 dx_des 	 = np.zeros(7)
-
 ddx_des  = np.zeros(7)
 dddx_des = np.zeros(7)
 
@@ -91,31 +99,19 @@ dx_e   = np.zeros(7)
 ddx_e  = np.zeros(7)
 dddx_e = np.zeros(7)
 
-# Joints name of UR5 robot
-jnames = ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint','wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint']
-
-# Object(messague) type JointState
-jstate = JointState()
-
-# Loop rate (in Hz)
-rate 	= rospy.Rate(100)		# 100 [Hz]
-dt 		= 1e-2					# 10  [ms]
-
 # Create a object Robot with dynamics of UR5 robot (code in Functiones)
 UR5_robot = Robot(q, dq, ndof, dt)
 
 # ================================
 # 			SMC controller
 # ================================
-#alpha = 0.5*dt
-#gamma = 0.9
-alpha = 80*dt
-gamma = 1.0
+alpha = 10*dt # 10 50 80
+gamma = 0.999
 beta  = 0.001
 Lambda = 0.5*np.array([1, 1, 1, 1, 1, 1])
-dLambda = np.zeros(6)
 
-dJ_Lambda = np.zeros(ndof)
+dJ_Lambda = np.zeros(6)
+dLambda = np.zeros(6)
 
 s  = np.zeros(6)
 ds = np.zeros(6)
@@ -166,8 +162,8 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
-#fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
-fn = "borrar_test"
+fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
+#fn = "borrar_test"
 
 # Creates folder if it does not exist
 
@@ -191,7 +187,8 @@ while not rospy.is_shutdown():
 
 	# s and ds
 	s  = np.multiply(np.multiply(Lambda, Lambda), e) + 2*np.multiply(Lambda, de)
-	ds = 2*np.multiply(np.multiply(Lambda, dLambda), e) + np.multiply(np.multiply(Lambda, Lambda), de) + 2*np.multiply(dLambda, de) + 2*np.multiply(Lambda, dde)	
+	ds = 2*np.multiply(np.multiply(Lambda, dLambda), e) + np.multiply(np.multiply(Lambda, Lambda), de) +\
+		 2*np.multiply(dLambda, de) + 2*np.multiply(Lambda, dde)	
 
 	# Calcular b y M
 	#rbdl.NonlinearEffects(modelo, q, dq, b)
@@ -264,9 +261,6 @@ while not rospy.is_shutdown():
 	#if crit_p > np.sqrt(6):
 	Lambda[0:6] = Lambda[0:6] - alpha*dJ_Lambda[0:6] 	#[3x1]
 
-	
-	t = t + dt
-
 	# Ball marker
 	bmarker_des.xyz(x_des[0:3])	# Red
 	bmarker_act.xyz(x_act[0:3])	# Yellow
@@ -304,7 +298,10 @@ while not rospy.is_shutdown():
 
 	df.append(df_row, sort = False).to_csv(path, index=False, mode = 'a', header=False)
 
-	if t>=(10): # simulation time equal to 1 min
+	# Time
+	t = t + dt
+
+	if t>=(600): # 10 min
 		print("Reached maximum of steps")
 		break
 
