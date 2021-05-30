@@ -105,7 +105,7 @@ UR5_robot = Robot(q, dq, ndof, dt)
 # ================================
 # 			PD controller
 # ================================
-alpha = 10*dt # 10 50 80
+alpha = 80*dt # 10 50 80
 gamma = 0.999
 beta  = 0.001
 KP    = 0.5*np.array([1, 1, 1, 1, 1, 1])
@@ -121,6 +121,7 @@ u  = np.zeros(6)
 # 		Dynamic simulation
 # ================================
 t = 0.0
+t_reach = 600 # 10 min
 
 origin 	= './Data/PDi'
 suffix 	= 'circular_traj'
@@ -166,7 +167,7 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
-fn = "articular_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
+fn = "articular"+"_kp_"+str(KP[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_t_"+str(t_reach)+".csv"
 #fn = "borrar_articular_test"
 
 # Creates folder if it does not exist
@@ -256,7 +257,7 @@ while not rospy.is_shutdown():
 	dJ_KD = np.multiply(dJ_q, du_KD) 	# [6x1]	
 
 	# New value of KP and KD
-	crit_p = (180/pi)*np.sqrt(np.sum(np.power(s[0:6],2))) 	#[mm]
+	#crit_p = (180/pi)*np.sqrt(np.sum(np.power(s[0:6],2))) 	#[mm]
 	#if crit_p > np.sqrt(6):
 	KP[0:6] = KP[0:6] - alpha*dJ_KP[0:6] 	#[6x1]
 	KD[0:6] = KD[0:6] - alpha*dJ_KD[0:6] 	#[6x1]	
@@ -298,7 +299,7 @@ while not rospy.is_shutdown():
 	# Time
 	t = t + dt
 
-	if t>=(600): # 10 min
+	if t>=(t_reach): # 10 min
 		print("Reached maximum of steps")
 		break
 
