@@ -148,9 +148,9 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
     k_p             = 150
     k_o             = 20
     k               = np.diag([k_p, k_p, k_p, k_o, k_o, k_o, k_o])
-    best_norm_e1    = 10e-3
-    best_norm_e2    = 10e-3
-    max_iter        = 50
+    best_norm_e1    = 1e-3 
+    best_norm_e2    = 1e-3
+    max_iter        = 10
     delta           = 0.01
     q               = copy(q0)
 
@@ -188,6 +188,74 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
 
     return q_best, dq_best, ddq, dddq
 
+
+
+def ikine_pose_ur5_configuration(q0, dq0, ddq0):
+    """
+    @info   Computes inverse kinematics with the method of inverse jacobian.
+            K values were sintonized.
+    
+    Inputs:
+    -------
+        - xdes  :   Desired position and orientation vector
+        - dxdes :   Desired linear and angular velocity vector
+        - ddxdes:   Desired linear and angular acceleration vector
+        - q0    :   Initial joint configuration (It's very important)
+
+    Outputs:
+    --------        
+        - qdes  :   Desired joint position
+        - qdes  :   Desired joint velocity
+        - ddqdes:   Desired joint acceleration
+    """    
+    k_p             = 400
+    k_o             = 40
+    k               = np.diag([k_p, k_p, k_p, k_o, k_o, k_o, k_o])
+    best_norm_e1    = 1e-4 
+    best_norm_e2    = 1e-4
+    max_iter        = 1000
+    delta           = 0.0001
+    q               = copy(q0)
+
+    x_0     = np.zeros(7); x_0[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
+    dx_0    = np.zeros(7) 
+    x_0[0:3], dx_0[0:3], _, _ = circular_trayectory_generator(0.0) # first point
+
+    for i in range(max_iter):
+        T       = fkine_ur5(q)
+        e1      = x_0[0:3] - T[0:3,3]                          # position error
+        e2      = quatError(x_0[3:7], rot2quat(T[0:3,0:3]))    # orientation error
+        e       = np.concatenate((e1,e2), axis=0)               # [pos, quaternion]
+        de      = -np.dot(k,e)
+        J       = jacobian_pose_ur5(q,delta)
+        Jinv    = np.linalg.pinv(J)
+        dq      = np.dot(Jinv, dx_0 - de)
+        q       = q + delta*dq
+
+        #print("iter: ", i)
+        #print("norma position: ",np.linalg.norm(e1))
+        #print("norma orientation: ",np.linalg.norm(e2))
+        if (np.linalg.norm(e2) < best_norm_e2) & (np.linalg.norm(e1)< best_norm_e1):
+
+            best_norm_e2    =   np.linalg.norm(e2)
+            best_norm_e1    =   np.linalg.norm(e1)
+            q_best          =   q
+            dq_best         =   dq
+            #ddq_best        =   np.dot(Jinv, ( ddxdes - np.dot(dJ,dq_best) ))
+            #print("iter: ", i)
+            #print("norma position: ",best_norm_e1)
+            #print("norma orientation: ",best_norm_e2)
+            #print("q: ", q)#np.round(q,2))
+            #print("dq: ", dq)#np.round(dq,2))
+            #print("\n")
+    print("\n\n")
+    print("norma position: ",best_norm_e1)
+    print("norma orientation: ",best_norm_e2)
+    print("\n\n")
+    ddq     = (dq_best - dq0)/delta  # angular acceleration 
+    dddq    = (ddq- ddq0)/delta # angular jerk
+
+    return q_best, dq_best, ddq, dddq
 
 class Robot(object):
     """
@@ -338,7 +406,8 @@ def circular_trayectory_generator(t):
     r_min   = 0.30  # m     # No se mofica
     y_max   = y_paciente + 0.80*l                   #   [m]
     y_min   = y_paciente + 0.20*l                   #   [m]
-    r_circ  = 0.02#1                                   #   [m] 
+    r_circ  = 0.05#1                                   #   [m] 
+    r_z     = 0.02
 
     # Parameters of circular trayetory     
     f           = 0.1                       # frecuency     [Hz]
@@ -353,20 +422,30 @@ def circular_trayectory_generator(t):
     # position points
     x_circ_tray  = x0_tray + r_circ*np.cos(w*(t+phi))
     y_circ_tray  = y0_tray + r_circ*np.sin(w*(t+phi))
+    z_circ_tray  = r_z*np.sin(w*t)
 
     # velocity points
     dx_circ_tray = r_circ*( (-w)*np.sin(w*(t+phi)) )
     dy_circ_tray = r_circ*( (+w)*np.cos(w*(t+phi)) )
+    dz_circ_tray = r_z*w*np.cos(w*t)
 
     # acceleration points
     ddx_circ_tray = r_circ*( (-w*w)*np.cos(w*(t+phi)) )
     ddy_circ_tray = r_circ*( (-w*w)*np.sin(w*(t+phi)) )    
+    ddz_circ_tray = r_z*(-w*w)*np.sin(w*t)
 
     # jerk points
     dddx_circ_tray = r_circ*( (+w*w*w)*np.sin(w*(t+phi)) )
     dddy_circ_tray = r_circ*( (-w*w*w)*np.cos(w*(t+phi)) )
+    dddz_circ_tray = r_z*(-w*w*w)*np.cos(w*t)
 
-    return [x_circ_tray, y_circ_tray, 0.0], [dx_circ_tray, dy_circ_tray, 0.0], [ddx_circ_tray, ddy_circ_tray, 0.0], [dddx_circ_tray, dddy_circ_tray, 0.0] 
+    # vectors
+    pos   = [x_circ_tray, y_circ_tray, z_circ_tray]
+    vel   = [dx_circ_tray, dy_circ_tray, dz_circ_tray]
+    accel = [ddx_circ_tray, ddy_circ_tray, ddz_circ_tray]
+    jerk  = [dddx_circ_tray, dddy_circ_tray, dddz_circ_tray] 
+
+    return pos, vel, accel, jerk
 
 
 def patient_force(max_force, min_force):
