@@ -18,7 +18,7 @@ from roslib import packages				# Library with ROS packages
 import rbdl								# Library to compute dynamic matrix H and B of robot
 pi = np.pi 								# Define "pi"
 from datetime import datetime
-from kalman import * 					# kalman filter
+from savitsky import * 					# savitsky filter
 
 
 # ===============================
@@ -65,7 +65,7 @@ dt 		= 1e-2				# 10 ms
 # ==============
 # Kalman Filter 
 # ==============
-KF = MultipleKalmanDerivator(dt)
+sgD = MultipleSavGolDerivator(dt)
 
 # =============================================================
 # 				Initial configuration
@@ -144,23 +144,19 @@ folder = os.path.join(cwd, origin, suffix)
 
 
 column_names = [
+	'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
+	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',
+	'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
 	'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
-	'dddx_d', 'dddy_d', 'dddz_d', 'dddw_d', 'dddex_d', 'dddey_d', 'dddez_d',
-	'dddx_k', 'dddy_k', 'dddz_k', 'dddw_k', 'dddex_k', 'dddey_k', 'dddez_k',
-	
+
+	'dx_k', 'dy_k', 'dz_k', 'dw_k', 'dex_k', 'dey_k', 'dez_k',
 	'ddx_k', 'ddy_k', 'ddz_k', 'ddw_k', 'ddex_k', 'ddey_k', 'ddez_k',
-	
-	'e_x', 'e_y', 'e_z', 'e_w', 'e_ex', 'e_ey', 'e_ez',
-	'de_x', 'de_y', 'de_z', 'de_w', 'de_ex', 'de_ey', 'de_ez',
-	'dde_x', 'dde_y', 'dde_z', 'dde_w', 'dde_ex', 'dde_ey', 'dde_ez',
-	'ddde_x', 'ddde_y', 'ddde_z', 'ddde_w', 'ddde_ex', 'ddde_ey', 'ddde_ez',	
-	
-	'q1', 'q2', 'q3', 'q4', 'q5', 'q6',
-	'dq1', 'dq2', 'dq3', 'dq4', 'dq5', 'dq6',
-	'ddq1', 'ddq2', 'ddq3', 'ddq4', 'ddq5', 'ddq6',
-	'q1_k', 'q2_k', 'q3_k', 'q4_k', 'q5_k', 'q6_k',
-	'dq1_k', 'dq2_k', 'dq3_k', 'dq4_k', 'dq5_k', 'dq6_k',
-	'ddq1_k', 'ddq2_k', 'ddq3_k', 'ddq4_k', 'ddq5_k', 'ddq6_k'	
+	'dddx_k', 'dddy_k', 'dddz_k', 'dddw_k', 'dddex_k', 'dddey_k', 'dddez_k',
+
+	'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
+	'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
+	'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
+	'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des'
 	]
 
 df = pd.DataFrame(columns=column_names)
@@ -171,7 +167,7 @@ now = now.strftime("%d-%m-%Y_%H-%M-%S")
 fn = now
 #fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_gamma_"+str(gamma)+"v2.csv"
 #fn = "radio_30_mm.csv"
-fn = "prueba_kalman.csv"
+fn = "prueba_savitsky.csv"
 
 # Creates folder if it does not exist
 if not os.path.exists(folder):
@@ -201,16 +197,19 @@ while not rospy.is_shutdown():
 	x_act[0:7]  = get_current_pose(q)
 	dx_act[0:7] = get_current_dpose(q, dq)
 
-
 	# Estimation of current acceleration and jerk with kalman filter
-	_, ddx_act_kalman, dddx_act_kalman  = KF.update(dx_act)
+	dx_k, ddx_k, dddx_k  = sgD.update(x_act)
+
+	dx_act = dx_k
+	ddx_act = ddx_k
+	dddx_act = dddx_k
 		
 	# Estimation of current acceleration and jerk with euler 
-	ddx_act     = (dx_act - dx_act_p)/dt 
-	dddx_act    = (ddx_act - ddx_act_p)/dt 
-	# Past values
-	dx_act_p 	= copy(dx_act) 
-	ddx_act_p   = copy(ddx_act)
+	# ddx_act     = (dx_act - dx_act_p)/dt 
+	# dddx_act    = (ddx_act - ddx_act_p)/dt 
+	# # Past values
+	# dx_act_p 	= copy(dx_act) 
+	# ddx_act_p   = copy(ddx_act)
 
 	# Error in position, velocity and acceleration 
 	x_e[0:7]   = compute_error_pose(x_des, x_act)
@@ -321,9 +320,30 @@ while not rospy.is_shutdown():
 	#	  (J_det)+ (J_inv_det)
 
 
-	row = tl(dddx_act)+tl(dddx_des)+tl(dddx_act_kalman)+\
-		  tl(ddx_act_kalman)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(q)+tl(dq)+tl(ddq)+\
-		  tl(q_k)+tl(dq_k)+tl(ddq_k)
+	# row = tl(dddx_act)+tl(dddx_des)+tl(dddx_k)+\
+	# 	  tl(ddx_k)+tl(x_e)+tl(dx_e)+tl(ddx_e)+tl(q)+tl(dq)+tl(ddq)+\
+	# 	  tl(q_k)+tl(dq_k)+tl(ddq_k)
+
+	column_names = [
+		'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
+		'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',
+		'ddx', 'ddy', 'ddz', 'ddw', 'ddex', 'ddey', 'ddez',
+		'dddx', 'dddy', 'dddz', 'dddw', 'dddex', 'dddey', 'dddez',
+
+		'dx_k', 'dy_k', 'dz_k', 'dw_k', 'dex_k', 'dey_k', 'dez_k',
+		'ddx_k', 'ddy_k', 'ddz_k', 'ddw_k', 'ddex_k', 'ddey_k', 'ddez_k',
+		'dddx_k', 'dddy_k', 'dddz_k', 'dddw_k', 'dddex_k', 'dddey_k', 'dddez_k',
+
+		'x_des', 'y_des', 'z_des', 'w_des', 'ex_des', 'ey_des', 'ez_des',
+		'dx_des', 'dy_des', 'dz_des', 'dw_des', 'dex_des', 'dey_des', 'dez_des',
+		'ddx_des', 'ddy_des', 'ddz_des', 'ddw_des', 'ddex_des', 'ddey_des', 'ddez_des',
+		'dddx_des', 'dddy_des', 'dddz_des', 'dddw_des', 'dddex_des', 'dddey_des', 'dddez_des'
+		]
+
+	row = tl(x_act) + tl(dx_act) + tl(ddx_act) + tl(dddx_act) + \
+		  tl(dx_k) + tl(ddx_k) + tl(dddx_k) + \
+		  tl(x_des) + tl(dx_des) + tl(ddx_des) + tl(dddx_des)
+
 	row = tl(np.expand_dims(np.array(row), axis = 1))
 
 	# Fix for redimensionality
