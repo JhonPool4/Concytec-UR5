@@ -174,7 +174,7 @@ now = now.strftime("%d-%m-%Y_%H-%M-%S")
 fn = now
 fn = "cartesian_"+"lambda_"+str(Lambda[0])+"_alpha_"+str(alpha[0])+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_v3.csv"
 #fn = "radio_30_mm.csv"
-fn = "prueba_kalman.csv"
+#fn = "prueba_kalman.csv"
 
 # Creates folder if it does not exist
 if not os.path.exists(folder):
@@ -275,14 +275,14 @@ while not rospy.is_shutdown():
 
 	dJ_x = gamma*np.multiply(P1, dP1_x) + beta*np.multiply(P2, dP2_x)	# [7x1]
 
-	du_Lambda = 2*np.dot(M, np.multiply(2-tanh2, np.multiply(Lambda, x_e) + dx_e ))	# [7x1]
+	du_Lambda = 2*np.dot(M_x, np.multiply(2-tanh2, np.multiply(Lambda, x_e) + dx_e ))	# [7x1]
 
 	dJ_Lambda =  np.multiply(dJ_x, du_Lambda)							# [7x1]
 
 	# New value of Lambda
 	crit_p = 1000*np.sqrt(np.sum(np.power(s[0:3],2))) 	#[mm]
 	crit_o = np.sqrt(np.sum(np.power(s[3:7],2))) 
-	if crit_p > np.sqrt(12):
+	if crit_p > np.sqrt(3):
 		Lambda[0:3] = Lambda[0:3] - np.multiply(alpha[0:3],dJ_Lambda[0:3]) 	#[3x1]
 
 	if crit_o > 1e-3:
@@ -295,21 +295,21 @@ while not rospy.is_shutdown():
 
 
 	# Print
-	print("t: ", t)
+	print("t: ", np.round(t,2))
 	#print("k: ", ddx_act_kalman[0:3])
 	#print("e: ", ddx_act[0:3])	
-	print("Lambda: ", Lambda[0:3])
-	print("Lambda: ", Lambda[3:7])
-	print("s: ", np.round(1000*s[0:3], 2))
-	print("ds: ",np.round(1000*ds[0:3], 2))
-	#print("crit_p: ", crit_p)
+	#print("Lambda: ", Lambda[0:3])
+	#print("Lambda: ", Lambda[3:7])
+	#print("s: ", np.round(1000*s[0:3], 2))
+	#print("ds: ",np.round(1000*ds[0:3], 2))
+	print("crit_p: ", crit_p)
 	#print("crit_o: ", crit_o)
 	#print("crit: ", np.round(1000*crit[0:3], 2))
 	#print("crit: ", np.sqrt(np.sum(np.power(crit[3:7],2))) )
 	#print("c:  ", c[0:3])
 	#print("dJ_Lambda: ", -np.multiply(alpha,dJ_Lambda)[0:3])
-	print("e   (mm): ", np.round(1000*x_e[0:3], 2))
-	print("de  (mm): ", np.round(1000*dx_e[0:3],2))
+	#print("e   (mm): ", np.round(1000*x_e[0:3], 2))
+	#print("de  (mm): ", np.round(1000*dx_e[0:3],2))
 	#print("dde (mm): ", np.round(1000*ddx_e[0:3],2))
 	#print("ddde(mm): ", np.round(1000*dddx_e[0:3],2))	
 	print("\n")
@@ -346,7 +346,7 @@ while not rospy.is_shutdown():
 	# Time
 	t = t + dt
 
-	if t>=(600): # 10 min
+	if t>=(60): # 10 min
 		print("Reached maximum of steps \n\n")
 		break
 
