@@ -18,7 +18,7 @@ from roslib import packages				# Library with ROS packages
 import rbdl								# Library to compute dynamic matrix H and B of robot
 pi = np.pi 								# Define "pi"
 from datetime import datetime
-from kalman import * 					# kalman filter
+from savitsky import * 					# savitsky filter
 
 
 # ===============================
@@ -65,7 +65,7 @@ dt 		= 1e-2				# 10 ms
 # ==============
 # Kalman Filter 
 # ==============
-KF = MultipleKalmanDerivator(dt)
+sgD = MultipleSavGolDerivator(dt)
 
 # =============================================================
 # 				Initial configuration
@@ -139,6 +139,9 @@ origin 	= './Data/SMCi'
 suffix 	= 'circular_traj'
 folder = os.path.join(cwd, origin, suffix)
 
+
+
+
 column_names = [
 	'x', 'y', 'z', 'w', 'ex', 'ey', 'ez',
 	'dx', 'dy', 'dz', 'dw', 'dex', 'dey', 'dez',	
@@ -207,11 +210,11 @@ while not rospy.is_shutdown():
 	#_, ddx_act_kalman, dddx_act_kalman  = KF.update(dx_act)
 		
 	# Estimation of current acceleration and jerk with euler 
-	ddx_act     = (dx_act - dx_act_p)/dt 
-	dddx_act    = (ddx_act - ddx_act_p)/dt 
-	# Past values
-	dx_act_p 	= copy(dx_act) 
-	ddx_act_p   = copy(ddx_act)
+	# ddx_act     = (dx_act - dx_act_p)/dt 
+	# dddx_act    = (ddx_act - ddx_act_p)/dt 
+	# # Past values
+	# dx_act_p 	= copy(dx_act) 
+	# ddx_act_p   = copy(ddx_act)
 
 	# Error in position, velocity and acceleration 
 	x_e[0:7]   = compute_error_pose(x_des, x_act)
@@ -354,7 +357,3 @@ while not rospy.is_shutdown():
 	rate.sleep()
 
 print('out because ctrl + c. Data saved.')
-
-
-
-
