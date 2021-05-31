@@ -1,4 +1,4 @@
-function [x_max, x_min, x_ticks] = get_axis(med, des, ticks)
+function [x_max, x_min, x_ticks] = get_axis(med, des, ticks, decimal)
 
 max_med = max(med);
 min_med = min(med);
@@ -26,11 +26,17 @@ else
     end
 end
 
+
+
 delta = x_max - x_min;
 x_max = x_max + 0.05*delta;
-x_min = x_min - 0.05*delta;
+x_min = x_min - 0.05*delta; 
 x_ticks = x_min : (x_max-x_min)/ticks : x_max;
-%x_ticks = round(x_ticks);
+
+% best presentation
+x_ticks = round(x_ticks, decimal);
+x_max = x_ticks(end);
+x_min = x_ticks(1);
 
 end
 
