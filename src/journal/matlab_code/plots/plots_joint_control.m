@@ -4,7 +4,8 @@ clc, clear all, close all;
 Path = '/home/utec/catkin_ws/src/journal/src/Data/SMCi/circular_traj/';
 %file = 'articular_lambda_0.5_alpha_0.1_gamma_1.0.csv';
 %file = 'articular_lambda_0.5_alpha_0.15_gamma_1.0.csv';
-file = 'articular_lambda_0.5_alpha_0.2_gamma_1.0.csv';
+%file = 'articular_lambda_0.5_alpha_0.2_gamma_1.0.csv';
+file = 'borrar_test';
 data = readtable(fullfile(Path, file),'PreserveVariableNames',true);
 time = 0:1/100:60;
 
