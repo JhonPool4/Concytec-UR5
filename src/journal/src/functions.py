@@ -192,8 +192,7 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
 
 def ikine_pose_ur5_configuration(q0, dq0, ddq0):
     """
-    @info   Computes inverse kinematics with the method of inverse jacobian.
-            K values were sintonized.
+    @info   computes values of q, dq, ddq that correspond to the first desired cartesian point
     
     Inputs:
     -------
@@ -272,8 +271,6 @@ class Robot(object):
         self.dt = dt
         self.robot = rbdl.loadModel(os.path.join(cwd,'../../ur5_description/urdf/ur5_joint_limited_robot.urdf'))
 
-        self.KF = MultipleKalmanIntegrator(dt) 
-
     def send_command(self, tau):
         tau = np.squeeze(np.asarray(tau))
         rbdl.CompositeRigidBodyAlgorithm(self.robot, self.q, self.M)
@@ -282,11 +279,6 @@ class Robot(object):
         self.ddq = np.linalg.inv(self.M).dot(tau-self.b)
         self.dq = self.dq + self.dt*self.ddq
         self.q = self.q + self.dt*self.dq      
-
-        self.q_k, self.dq_k, self.ddq_k = self.KF.update(self.ddq)
-
-    def get_kalman(self):
-        return self.q_k, self.dq_k, self.ddq_k
 
     def read_joint_positions(self):
         return self.q
@@ -624,3 +616,26 @@ class AdamOptimizer:
         v_hat = self.v/(1 - self.beta2**self.t)
         k = k - self.alpha*(m_hat/(np.sqrt(v_hat) - self.epsilon))
         return k
+
+
+def reference_trajectory(x_des, x_ref0, dx_ref0, dt):
+    """
+    Info: Generates a reference trajectory based on a desired trajectory.
+
+    Inputs: 
+    ------
+        - x_des:  desired trajectory
+        - x_ref0: initial conditions of x_ref
+        - dt:     sampling time 
+    """
+    psi = 1 # damping factor
+    wn  = 2 # natural frecuency
+
+    k0 = wn*wn
+    k1 = 2*psi*wn
+
+    ddx_ref = k0*x_des - k1*dx_ref0 - k0*x_ref0
+
+    dx_ref = dx_ref0 + dt*ddx_ref
+    x_ref  = x_ref0  + dt*dx_ref
+    return x_ref, dx_ref, ddx_ref
