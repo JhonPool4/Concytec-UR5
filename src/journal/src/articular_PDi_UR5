@@ -3,7 +3,24 @@
 # ============================================================
 #	Curso   :   Concytec - UTEC
 # 	Alumno  :   Jhon Charaja
-# 	Info	:	articular PD controller for UR5 robot
+# 	Info	:	articular PD controller with optimal adaptation 
+#				in terms of position and jerk error.
+"""
+	Notes:
+	-----
+	- Position error is more stable than jerk error
+	- Jerk error show several peaks
+	- A filter should be used to smooth the jerk error signal.
+	- The optimization equations cause the control gains to stabilize at 0,
+	  for control gains with initial value greather than 1. (Experimental observation)
+	- For this reason, the simulation use 0.5 as initial control gain.
+	
+	Updates:
+	-------
+	- Reference model and trajectory
+	- New formulation of dP2_q (dP2 / dq)
+"""
+
 # ============================================================
 
 # ============================
@@ -26,7 +43,7 @@ from datetime import datetime
 # 		Configuration of node
 # ===============================
 # Create a nodo: SMC_controller
-rospy.init_node("SMCi_controller_ur5")
+rospy.init_node("PDi_controller_ur5")
 cwd = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -68,13 +85,20 @@ q 		    = np.array([0.22555947, -2.16092376, -2.13975583, -0.41997402,  1.538277
 dq 			= np.zeros(ndof)
 ddq 		= np.zeros(ndof)
 
+# Reference angular position, velocity and acceleration
+x_ref   = np.zeros(7)
+dx_ref  = np.zeros(7)
+ddx_ref = np.zeros(7)
+# First reference cartesian point
+x_ref   = get_current_pose(q)
+
 # Desired angular position, velocity and acceleration
 q_des 	 = np.zeros(6)  
 dq_des   = np.zeros(6)
 ddq_des  = np.zeros(6)
 dddq_des = np.zeros(6)
 # First desired joint configuration
-q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5_configuration(q, dq, ddq) 
+q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5_configuration(x_ref, dx_ref, q, dq, ddq)
 
 # Desired cartesian position, velocity, acceleration and jerk
 x_des    = np.zeros(7)
@@ -99,15 +123,15 @@ dx_e   = np.zeros(7)
 ddx_e  = np.zeros(7)
 dddx_e = np.zeros(7)
 
-# Create a object Robot with dynamics of UR5 robot (code in Functiones)
+# Create a object Robot with dynamics of UR5 robot (code in Functions)
 UR5_robot = Robot(q, dq, ndof, dt)
 
 # ================================
 # 			PD controller
 # ================================
-alpha = 80*dt # 10 50 80
-gamma = 0.999
-beta  = 0.001
+alpha = 50*dt # 10 50 80
+gamma = 0.8
+beta  = 0.2
 KP    = 0.5*np.array([1, 1, 1, 1, 1, 1])
 KD    = 2*np.sqrt(KP)
 dJ_KP = np.zeros(6)
@@ -121,7 +145,7 @@ u  = np.zeros(6)
 # 		Dynamic simulation
 # ================================
 t = 0.0
-t_reach = 600 # 10 min
+t_reach = 10 # secs
 
 origin 	= './Data/PDi'
 suffix 	= 'circular_traj'
@@ -167,8 +191,8 @@ df = pd.DataFrame(columns=column_names)
 now = datetime.now()
 now = now.strftime("%d%m%Y_%H-%M-%S")
 #fn = now
-fn = "articular"+"_kp_"+str(KP[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_t_"+str(t_reach)+".csv"
-#fn = "borrar_articular_test"
+#fn = "articular"+"_kp_"+str(KP[0])+"_alpha_"+str(alpha)+"_beta_"+str(beta)+"_gamma_"+str(gamma)+"_t_"+str(t_reach)+".csv"
+fn = "borrar_articular_test"
 
 # Creates folder if it does not exist
 
@@ -182,8 +206,14 @@ while not rospy.is_shutdown():
 	# desired values (cartesian space)
 	x_des[0:3], dx_des[0:3], ddx_des[0:3], dddx_des[0:3] = circular_trayectory_generator(t)
 	
+	# reference values (cartesian space)
+	x_ref[0:3], dx_ref[0:3], ddx_ref[0:3] = reference_trajectory(x_des[0:3], x_ref[0:3], dx_ref[0:3], dt)
+
 	# Inverse kinematics
-	q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5(x_des, dx_des, q_des, dq_des, ddq_des)	# It starts with qdes=copy(q0)
+	q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5(x_ref, dx_ref, q_des, dq_des, ddq_des)	# It starts with q_des=copy(q0)
+
+	# Inverse kinematics
+	#q_des, dq_des, ddq_des, dddq_des = ikine_pose_ur5(x_des, dx_des, q_des, dq_des, ddq_des)	# It starts with qdes=copy(q0)
 
 	# Error calculation
 	e 	=  q_des - q
@@ -192,10 +222,12 @@ while not rospy.is_shutdown():
 
 	# Calcular b y M
 	#rbdl.NonlinearEffects(modelo, q, dq, b)
-	rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
-
+	#rbdl.CompositeRigidBodyAlgorithm(modelo, q, M)
+	#b_est = UR5_robot.get_b()
+	M  	  = UR5_robot.get_M()
+	
 	# SMC articular + Feedback linearization
-	b_est = u - np.dot(M, ddq)
+	b_est = u - np.dot(M, ddq)  			
 	u = M.dot(ddq_des +  np.multiply(KP, e) + np.multiply(KD, de)) + b_est
 	
 	# Send control signal
@@ -238,16 +270,16 @@ while not rospy.is_shutdown():
 	dKD = -(alpha/dt) * (dJ_KD)
 
 	# special parameters
-	P1 = np.multiply(KP, e) + np.multiply(KD, de)
-	P2 = np.multiply(dKP,e) + np.multiply(KP, e) +\
-		 np.multiply(dKD, de) + np.multiply(KD, dde)
+	P1 = +np.multiply(KP, e) + np.multiply(KD, de)
+	P2 = -np.multiply(dKP,e)   - np.multiply(KP, de) -\
+		  np.multiply(dKD, de) - np.multiply(KD, dde)
 	
 	#cost function
 	c = gamma *0.5*np.multiply(P1,P1) + beta*0.5*np.multiply(P2,P2) 	# [6x1]
 	
 	# Gradient descent
 	dP1_q = -copy(KP) 					# [6x1]
-	dP2_q = -copy(dKP) 					# [6x1]
+	dP2_q = +copy(dKP) 					# [6x1]
 
 	dJ_q  = gamma*np.multiply(P1, dP1_q) + beta*np.multiply(P2, dP2_q)	# [6x1]
 
@@ -257,20 +289,21 @@ while not rospy.is_shutdown():
 	dJ_KD = np.multiply(dJ_q, du_KD) 	# [6x1]	
 
 	# New value of KP and KD
-	#crit_p = (180/pi)*np.sqrt(np.sum(np.power(s[0:6],2))) 	#[mm]
+	crit_p = (1000)*np.sqrt(np.sum(np.power(x_e[0:3],2))) 	#[mm]
 	#if crit_p > np.sqrt(6):
-	KP[0:6] = KP[0:6] - alpha*dJ_KP[0:6] 	#[6x1]
+	KP[0:6] = KP[0:6] - alpha*dJ_KP[0:6] 	#[6x1]  
 	KD[0:6] = KD[0:6] - alpha*dJ_KD[0:6] 	#[6x1]	
 
 	# Ball marker
-	bmarker_des.xyz(x_des[0:3])	# Red
+	bmarker_des.xyz(x_ref[0:3])	# Red
 	bmarker_act.xyz(x_act[0:3])	# Yellow
 	
 	# Print
 	print("t: ", np.round(t,2))
-	#print("Lambda: ", Lambda) 
-	#print("c:  ", c)
-	#print("crit_p: ", crit_p)
+	print("KP: ", KP)
+	print("KD: ", KD) 
+	print("c:  ", c)
+	print("crit_p: ", crit_p)
 	#print("e   (mm): ", np.round(1000*x_e[0:3], 1))
 	#print("de  (mm): ", np.round(1000*dx_e[0:3],1))
 	#print("dde (mm): ", np.round(1000*ddx_e[0:3],1))
