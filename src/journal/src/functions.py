@@ -190,9 +190,10 @@ def ikine_pose_ur5(xdes, dxdes, q0, dq0, ddq0):
 
 
 
-def ikine_pose_ur5_configuration(q0, dq0, ddq0):
+def ikine_pose_ur5_configuration(x_0, dx_0, q0, dq0, ddq0):
     """
     @info   computes values of q, dq, ddq that correspond to the first desired cartesian point
+            Then, the ikine require less iteration With this previus configuraiton
     
     Inputs:
     -------
@@ -216,9 +217,9 @@ def ikine_pose_ur5_configuration(q0, dq0, ddq0):
     delta           = 0.0001
     q               = copy(q0)
 
-    x_0     = np.zeros(7); x_0[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
-    dx_0    = np.zeros(7) 
-    x_0[0:3], dx_0[0:3], _, _ = circular_trayectory_generator(0.0) # first point
+    #x_0     = np.zeros(7); x_0[3:7] = np.array([0.01676998,  0.99985616,  0.00251062,  0.00]) # fixed orientation
+    #dx_0    = np.zeros(7) 
+    #x_0[0:3], dx_0[0:3], _, _ = circular_trayectory_generator(0.0) # first point
 
     for i in range(max_iter):
         T       = fkine_ur5(q)
@@ -562,7 +563,8 @@ def get_current_pose(q):
     # @info Computes pose [x, y, z, w, ex, ey, ez]
     T_act       = fkine_ur5(q)
     Q_act       = rot2quat(T_act[0:3, 0:3])
-    return [T_act[0,3], T_act[1,3], T_act[2,3], Q_act[0], Q_act[1], Q_act[2], Q_act[3]]
+    x_act       = np.array([T_act[0,3], T_act[1,3], T_act[2,3], Q_act[0], Q_act[1], Q_act[2], Q_act[3]])     
+    return x_act
 
 def get_current_dpose(q,dq):
     # @info Computes first derivative of pose with respect of time
@@ -629,13 +631,14 @@ def reference_trajectory(x_des, x_ref0, dx_ref0, dt):
         - dt:     sampling time 
     """
     psi = 1 # damping factor
-    wn  = 2 # natural frecuency
+    wn  = 4 # natural frecuency
 
     k0 = wn*wn
     k1 = 2*psi*wn
-
-    ddx_ref = k0*x_des - k1*dx_ref0 - k0*x_ref0
-
+    # compute ddx_ref
+    ddx_ref = np.multiply(x_des,k0) -  np.multiply(dx_ref0,k1) - np.multiply(x_ref0,k0)
+    # double integration 
     dx_ref = dx_ref0 + dt*ddx_ref
     x_ref  = x_ref0  + dt*dx_ref
+
     return x_ref, dx_ref, ddx_ref
